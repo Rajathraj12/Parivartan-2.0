@@ -1,6 +1,5 @@
 package com.example.parivartan.ui.intro
 
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,53 +14,34 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.parivartan.R
-import kotlinx.coroutines.launch
 
 private val Teal = Color(0xFF0D9488)
 private val Slate = Color(0xFF64748B)
-
-private data class IntroSlide(
-    val title: String,
-    val description: String,
-    val imageRes: Int,
-)
-
-private val introSlides = listOf(
-    IntroSlide(
-        title = "Welcome to Parivartan",
-        description = "Report civic issues and help make your community better.",
-        imageRes = R.drawable.icon,
-    ),
-    IntroSlide(
-        title = "Report Issues Easily",
-        description = "Take a photo, mark the location, and submit your complaint in seconds.",
-        imageRes = R.drawable.icon,
-    ),
-    IntroSlide(
-        title = "Track Progress",
-        description = "Monitor the status of your reported issues and see them get resolved.",
-        imageRes = R.drawable.icon,
-    ),
-)
 
 /**
  * Compose version of the React Native IntroScreen.
@@ -72,143 +52,124 @@ private val introSlides = listOf(
  */
 @Composable
 fun IntroScreen(
-    onSkip: () -> Unit,
-    onGetStarted: () -> Unit,
+    onSkip: () -> Unit, // keeping for signature compatibility
+    onGetStarted: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val pagerState = rememberPagerState(pageCount = { introSlides.size })
-    val scope = rememberCoroutineScope()
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
-        // Skip button (top-right)
-        Text(
-            text = "Skip",
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 50.dp, end = 20.dp)
-                .clickable(onClick = onSkip),
-            color = Teal,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-        )
-
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .padding(top = 80.dp)
-        ) {
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-            ) { page ->
-                IntroSlidePage(slide = introSlides[page])
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(bottom = 40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Dots(
-                pageCount = introSlides.size,
-                currentPage = pagerState.currentPage,
-                modifier = Modifier.padding(bottom = 30.dp)
-            )
-
-            val isLastPage = pagerState.currentPage == introSlides.lastIndex
-            Button(
-                onClick = {
-                    if (!isLastPage) {
-                        scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
-                    } else {
-                        onGetStarted()
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Teal),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 40.dp)
-                    .height(52.dp)
-            ) {
-                Text(
-                    text = if (isLastPage) "Get Started" else "Next",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun IntroSlidePage(slide: IntroSlide, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.Center,
+            .background(Color.White)
+            .padding(horizontal = 24.dp, vertical = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Image(
-            painter = painterResource(id = slide.imageRes),
-            contentDescription = null,
+            painter = painterResource(id = R.drawable.icon),
+            contentDescription = "Logo",
             modifier = Modifier
-                .size(200.dp)
-                .padding(bottom = 40.dp)
+                .size(100.dp)
+                .padding(bottom = 16.dp)
         )
 
         Text(
-            text = slide.title,
-            style = MaterialTheme.typography.headlineSmall,
+            text = "Welcome to Parivartan",
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
             color = Teal,
-            modifier = Modifier.padding(bottom = 10.dp)
+            modifier = Modifier.padding(bottom = 8.dp)
         )
 
         Text(
-            text = slide.description,
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            color = Slate,
-            modifier = Modifier.padding(bottom = 20.dp),
+            text = "Who Are You?",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF1E293B),
+            modifier = Modifier.padding(top = 16.dp, bottom = 24.dp)
         )
+
+        Column(
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            RoleCard(
+                title = "Citizen",
+                subtitle = "Report & Track Issues",
+                icon = Icons.Default.Person,
+                onClick = { onGetStarted("citizen") }
+            )
+
+            RoleCard(
+                title = "Department",
+                subtitle = "Manage & Assign Complaints",
+                icon = Icons.Default.Home,
+                onClick = { onGetStarted("department") }
+            )
+
+            RoleCard(
+                title = "Staff",
+                subtitle = "Resolve Assigned Tasks",
+                icon = Icons.Default.Build,
+                onClick = { onGetStarted("staff") }
+            )
+
+            RoleCard(
+                title = "Admin",
+                subtitle = "System Administration",
+                icon = Icons.Default.Settings,
+                onClick = { onGetStarted("admin") }
+            )
+        }
     }
 }
 
 @Composable
-private fun Dots(
-    pageCount: Int,
-    currentPage: Int,
-    modifier: Modifier = Modifier,
+fun RoleCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onClick: () -> Unit
 ) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)), // Slate 50
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        repeat(pageCount) { index ->
-            val targetWidth = if (index == currentPage) 16.dp else 8.dp
-            val width by animateDpAsState(targetValue = targetWidth, label = "dotWidth")
-            val alpha = if (index == currentPage) 1f else 0.3f
-
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
-                    .height(8.dp)
-                    .width(width)
+                    .size(48.dp)
                     .clip(CircleShape)
-                    .background(Teal.copy(alpha = alpha))
-            )
+                    .background(Color(0xFFE0F2FE)), // Light Blue
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = Teal,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
 
-            if (index != pageCount - 1) {
-                Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color(0xFF1E293B)
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 14.sp,
+                    color = Slate
+                )
             }
         }
     }

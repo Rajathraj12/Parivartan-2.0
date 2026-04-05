@@ -1,4 +1,4 @@
-package com.example.parivartan.ui.community
+package com.example.parivartan.ui.citizen.community
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -342,4 +342,3 @@ fun IssueCard(issue: Issue, onNavigateToIssueDetail: (String) -> Unit) {
         }
     }
 }
-

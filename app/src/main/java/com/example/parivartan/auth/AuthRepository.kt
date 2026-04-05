@@ -12,4 +12,3 @@ interface AuthRepository {
     fun signIn(displayName: String? = null)
     fun signOut()
 }
-

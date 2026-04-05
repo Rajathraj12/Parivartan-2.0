@@ -1,4 +1,4 @@
-package com.example.parivartan.ui.profile
+package com.example.parivartan.ui.citizen.profile
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

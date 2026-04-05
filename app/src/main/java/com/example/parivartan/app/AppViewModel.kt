@@ -21,6 +21,9 @@ class AppViewModel(
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
+    var currentRole: String = "citizen"
+        private set
+
     val initState: StateFlow<InitState> = authRepository.authState
         .map { authState ->
             when (authState) {
@@ -42,8 +45,10 @@ class AppViewModel(
         }
     }
 
-    fun signInDemo() = authRepository.signIn(displayName = "Citizen")
+    fun signInDemo(role: String = "citizen") {
+        currentRole = role
+        authRepository.signIn(displayName = role.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() })
+    }
 
     fun signOut() = authRepository.signOut()
 }
-

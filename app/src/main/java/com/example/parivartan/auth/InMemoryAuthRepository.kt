@@ -21,4 +21,3 @@ class InMemoryAuthRepository : AuthRepository {
         _authState.value = AuthState.Unauthenticated
     }
 }
-

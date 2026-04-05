@@ -1,4 +1,4 @@
-package com.example.parivartan.ui.map
+package com.example.parivartan.ui.citizen.map
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,6 +24,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.launch
 
 data class MapIssue(
@@ -74,28 +80,31 @@ fun MapScreen(
     val coroutineScope = rememberCoroutineScope()
     val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    val jalandharPos = LatLng(31.3300, 75.5844)
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(jalandharPos, 12f)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFE2E8F0)) // placeholder for Map background
     ) {
-        // Here you would use GoogleMap composable or AndroidView with MapView
-        // Since maps compose might not be available, we simulate the markers
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Outlined.LocationOn, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color(0xFF64748B))
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Map View Placeholder", color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
-                Text("${filteredIssues.size} Issues shown", color = Color(0xFF64748B), fontSize = 14.sp)
-
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    filteredIssues.forEach { issue ->
-                        Button(onClick = { selectedIssue = issue }) {
-                            Text("Marker: ${issue.title}")
-                        }
+        GoogleMap(
+            modifier = Modifier.fillMaxSize(),
+            cameraPositionState = cameraPositionState
+        ) {
+            filteredIssues.forEach { issue ->
+                val issuePos = LatLng(issue.latitude, issue.longitude)
+                Marker(
+                    state = MarkerState(position = issuePos),
+                    title = issue.title,
+                    snippet = getStatusText(issue.status),
+                    onClick = {
+                        selectedIssue = issue
+                        false
                     }
-                }
+                )
             }
         }
 
@@ -127,7 +136,7 @@ fun MapScreen(
                     Spacer(modifier = Modifier.width(6.dp))
                     val hasFilter = filters.status.isNotEmpty() || filters.category.isNotEmpty() || filters.urgency
                     Text(
-                        text = "Filters ${if (hasFilter) "•" else ""}",
+                        text = "Filters ${if (hasFilter) "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢" else ""}",
                         color = Color(0xFF1E293B),
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp
@@ -439,4 +448,3 @@ private fun getStatusText(status: String): String {
         else -> status
     }
 }
-

@@ -1,4 +1,4 @@
-package com.example.parivartan.ui.home
+package com.example.parivartan.ui.citizen.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,8 +20,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddCircle
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.List
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -136,7 +140,7 @@ fun HomeScreen(
             QuickActionsRow(
                 onReport = onReportIssue,
                 onMap = onOpenMap,
-                onMyIssues = onOpenMyComplaints,
+                onMyIssues = { onOpenIssueDetail("1") },
                 onCommunity = onOpenCommunity,
             )
         }
@@ -258,9 +262,9 @@ private fun QuickActionsRow(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         QuickAction(icon = Icons.Outlined.AddCircle, title = "Report", color = Teal600, onClick = onReport)
-        QuickAction(icon = Icons.Outlined.Info, title = "Map View", color = Color(0xFF3B82F6), onClick = onMap)
-        QuickAction(icon = Icons.Outlined.Info, title = "My Issues", color = Color(0xFF8B5CF6), onClick = onMyIssues)
-        QuickAction(icon = Icons.Outlined.Person, title = "Community", color = Color(0xFFF59E0B), onClick = onCommunity)
+        QuickAction(icon = Icons.Outlined.Map, title = "Map View", color = Color(0xFF3B82F6), onClick = onMap)
+        QuickAction(icon = Icons.Outlined.List, title = "My Issues", color = Color(0xFF8B5CF6), onClick = onMyIssues)
+        QuickAction(icon = Icons.Outlined.People, title = "Community", color = Color(0xFFF59E0B), onClick = onCommunity)
     }
 }
 
@@ -363,12 +367,21 @@ private fun UrgentIssueCard(
                     )
                 }
 
-                Text(
-                    text = "↑ ${issue.upvotes}",
-                    color = Slate500,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.KeyboardArrowUp,
+                        contentDescription = "Upvotes",
+                        tint = Slate500,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${issue.upvotes}",
+                        color = Slate500,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -381,13 +394,22 @@ private fun UrgentIssueCard(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "📍 ${issue.address ?: issue.district}",
-                color = Slate500,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Outlined.LocationOn,
+                    contentDescription = "Location",
+                    tint = Slate500,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "${issue.address ?: issue.district}",
+                    color = Slate500,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -431,19 +453,35 @@ private fun RecentIssueRow(
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "📍 ${issue.address ?: issue.district}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Slate500,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Outlined.LocationOn,
+                            contentDescription = "Location",
+                            tint = Slate500,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "${issue.address ?: issue.district}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Slate500,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowUp,
+                    contentDescription = "Upvotes",
+                    tint = Slate500,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(2.dp))
                 Text(
-                    text = "↑ ${issue.upvotes}",
+                    text = "${issue.upvotes}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Slate500,
                     fontWeight = FontWeight.Medium
@@ -473,7 +511,12 @@ private fun TipsCard(modifier: Modifier = Modifier) {
                     .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = "💡", style = MaterialTheme.typography.titleMedium, color = Teal600)
+                Icon(
+                    imageVector = Icons.Outlined.Lightbulb,
+                    contentDescription = "Tip",
+                    tint = Teal600,
+                    modifier = Modifier.size(24.dp)
+                )
             }
 
             Spacer(modifier = Modifier.width(12.dp))

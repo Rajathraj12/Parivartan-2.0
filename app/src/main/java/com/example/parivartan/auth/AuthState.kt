@@ -5,4 +5,3 @@ sealed interface AuthState {
     data object Unauthenticated : AuthState
     data class Authenticated(val displayName: String? = null) : AuthState
 }
-

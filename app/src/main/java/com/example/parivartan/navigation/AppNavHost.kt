@@ -7,9 +7,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddCircle
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Place
-import androidx.compose.material.icons.outlined.List
-import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -42,12 +41,12 @@ import com.example.parivartan.app.AppViewModelFactory
 import com.example.parivartan.app.InitState
 import com.example.parivartan.auth.AuthRepository
 import com.example.parivartan.ui.auth.LoginScreen
-import com.example.parivartan.ui.components.SimpleAction
-import com.example.parivartan.ui.components.SimpleScreen
-import com.example.parivartan.ui.home.HomeScreen
-import com.example.parivartan.ui.community.CommunityScreen
-import com.example.parivartan.ui.profile.ProfileScreen
-import com.example.parivartan.ui.map.MapScreen
+import com.example.parivartan.ui.auth.SignupScreen
+import com.example.parivartan.ui.citizen.home.HomeScreen
+import com.example.parivartan.ui.citizen.community.CommunityScreen
+import com.example.parivartan.ui.citizen.profile.ProfileScreen
+import com.example.parivartan.ui.citizen.map.MapScreen
+import com.example.parivartan.ui.citizen.report.ReportIssueScreen
 import com.example.parivartan.ui.intro.IntroScreen
 import androidx.navigation.NavHostController
 import androidx.compose.ui.draw.shadow
@@ -70,9 +69,9 @@ fun ParivartanApp(authRepository: AuthRepository) {
     val tabs = remember {
         listOf(
             BottomTab(Route.Home, "Home", TabIcon.Vector(Icons.Outlined.Home)),
-            BottomTab(Route.Map, "Map", TabIcon.Vector(Icons.Outlined.Place)),
+            BottomTab(Route.Map, "Map", TabIcon.Vector(Icons.Outlined.Map)),
             BottomTab(Route.Report, "Report", TabIcon.Vector(Icons.Outlined.AddCircle)),
-            BottomTab(Route.Community, "Community", TabIcon.Vector(Icons.Outlined.List)),
+            BottomTab(Route.Community, "Community", TabIcon.Vector(Icons.Outlined.People)),
             BottomTab(Route.Profile, "Profile", TabIcon.Vector(Icons.Outlined.Person)),
         )
     }
@@ -91,10 +90,9 @@ fun ParivartanApp(authRepository: AuthRepository) {
             InitState.Initializing -> Unit
 
             InitState.Unauthenticated -> {
-                val isOnAuthScreen = currentRoute in setOf(
+                val isOnAuthScreen = currentRoute?.startsWith(Route.Login.route) == true || currentRoute in setOf(
                     Route.Splash.route,
                     Route.Intro.route,
-                    Route.Login.route,
                     Route.Signup.route,
                 )
 
@@ -117,19 +115,32 @@ fun ParivartanApp(authRepository: AuthRepository) {
             }
 
             is InitState.Authenticated -> {
-                val isOnAuthScreen = currentRoute in setOf(
+                val isOnAuthScreen = currentRoute?.startsWith(Route.Login.route) == true || currentRoute in setOf(
                     Route.Splash.route,
                     Route.Intro.route,
-                    Route.Login.route,
                     Route.Signup.route,
                     null
                 )
 
                 // Only forced navigation to Home if we are currently on an auth screen
                 if (isOnAuthScreen) {
-                    navController.navigate(Route.Home.route) {
-                        popUpTo(Route.Splash.route) { inclusive = true }
-                        launchSingleTop = true
+                    val role = appViewModel.currentRole // We need a way to know the logged-in role
+                    // For now, if we don't have a role in the ViewModel, default to "citizen" -> Home
+                    if (role == "admin") {
+                        navController.navigate(Route.AdminDashboard.route) {
+                            popUpTo(Route.Splash.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    } else if (role == "department" || role == "staff") {
+                        navController.navigate(Route.DepartmentDashboard.route) {
+                            popUpTo(Route.Splash.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    } else {
+                        navController.navigate(Route.Home.route) {
+                            popUpTo(Route.Splash.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     }
                 }
             }
@@ -152,9 +163,9 @@ fun ParivartanApp(authRepository: AuthRepository) {
                 val inactive = Color(0xFF64748B)
 
                 NavigationBar(
-                    tonalElevation = 0.dp,
+                    tonalElevation = 4.dp,
                     containerColor = Color.White,
-                    modifier = Modifier.height(60.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     tabs.forEach { tab ->
                         val selected = currentDestination
@@ -175,8 +186,7 @@ fun ParivartanApp(authRepository: AuthRepository) {
                                 icon = {
                                     Box(
                                         modifier = Modifier
-                                            .size(44.dp)
-                                            .shadow(6.dp, CircleShape)
+                                            .size(48.dp)
                                             .clip(CircleShape)
                                             .background(active),
                                         contentAlignment = Alignment.Center
@@ -184,7 +194,8 @@ fun ParivartanApp(authRepository: AuthRepository) {
                                         Icon(
                                             imageVector = (tab.icon as TabIcon.Vector).imageVector,
                                             contentDescription = tab.label,
-                                            tint = Color.White
+                                            tint = Color.White,
+                                            modifier = Modifier.size(24.dp)
                                         )
                                     }
                                 },
@@ -193,11 +204,11 @@ fun ParivartanApp(authRepository: AuthRepository) {
                                         tab.label,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                        style = MaterialTheme.typography.labelSmall,
+                                        softWrap = false,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                     )
                                 },
-                                alwaysShowLabel = false,
+                                alwaysShowLabel = true,
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = Color.White,
                                     unselectedIconColor = Color.White,
@@ -226,8 +237,9 @@ fun ParivartanApp(authRepository: AuthRepository) {
                                     Text(
                                         tab.label,
                                         maxLines = 1,
+                                        softWrap = false,
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Visible,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                     )
                                 },
                                 alwaysShowLabel = true,
@@ -249,7 +261,7 @@ fun ParivartanApp(authRepository: AuthRepository) {
             navController = navController,
             initState = initState,
             userFirstName = (initState as? InitState.Authenticated)?.displayName ?: "Citizen",
-            onLoginDemoClick = { appViewModel.signInDemo() },
+            onLoginDemoClick = { role -> appViewModel.signInDemo(role) },
             onLogoutClick = { appViewModel.signOut() },
             onSplashFinished = { isSplashFinished = true },
             modifier = Modifier.padding(innerPadding)
@@ -273,7 +285,7 @@ private fun AppNavHost(
     navController: NavHostController,
     initState: InitState,
     userFirstName: String,
-    onLoginDemoClick: () -> Unit,
+    onLoginDemoClick: (String) -> Unit,
     onLogoutClick: () -> Unit,
     onSplashFinished: () -> Unit,
     modifier: Modifier = Modifier
@@ -291,18 +303,21 @@ private fun AppNavHost(
 
         composable(Route.Intro.route) {
             IntroScreen(
-                onSkip = { navController.navigate(Route.Login.route) },
-                onGetStarted = { navController.navigate(Route.Login.route) },
+                onSkip = { navController.navigate("${Route.Login.route}/citizen") },
+                onGetStarted = { role ->
+                    navController.navigate("${Route.Login.route}/$role")
+                },
             )
         }
 
-        composable(Route.Login.route) {
+        composable("${Route.Login.route}/{role}") { backStackEntry ->
+            val role = backStackEntry.arguments?.getString("role") ?: "citizen"
             var isLoading by rememberSaveable { mutableStateOf(false) }
 
             LoginScreen(
                 onBack = { navController.popBackStack() },
                 onLogin = { _, _ ->
-                    onLoginDemoClick()
+                    onLoginDemoClick(role)
                 },
                 isLoading = isLoading,
                 onForgotPassword = {
@@ -313,12 +328,8 @@ private fun AppNavHost(
         }
 
         composable(Route.Signup.route) {
-            SimpleScreen(
-                title = "Signup",
-                actions = listOf(
-                    SimpleAction("Signup (demo)") { onLoginDemoClick() },
-                    SimpleAction("Back") { navController.popBackStack() },
-                )
+            SignupScreen(
+                navController = navController
             )
         }
 
@@ -327,21 +338,30 @@ private fun AppNavHost(
                 userFirstName = userFirstName,
                 onOpenProfile = { navController.navigate(Route.Profile.route) },
                 onReportIssue = { navController.navigate(Route.Report.route) },
-                onOpenMyComplaints = { navController.navigate(Route.MyComplaints.route) }
+                onOpenMyComplaints = { navController.navigate(Route.MyComplaints.route) },
+                onOpenMap = { navController.navigate(Route.Map.route) },
+                onOpenCommunity = { navController.navigate(Route.Community.route) },
+                onOpenIssueDetail = { id -> navController.navigate("${Route.IssueDetail.route}/$id") }
             )
         }
 
         composable(Route.Map.route) {
             MapScreen(
                 onNavigateToReport = { navController.navigate(Route.Report.route) },
-                onNavigateToIssueDetail = { id -> navController.navigate(Route.IssueDetail.route) }
+                onNavigateToIssueDetail = { id -> navController.navigate("${Route.IssueDetail.route}/$id") }
             )
         }
-        composable(Route.Report.route) { SimpleScreen("Report Issue") }
+        composable(Route.Report.route) {
+            ReportIssueScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToIssueDetail = { id -> navController.navigate("${Route.IssueDetail.route}/$id") },
+                onNavigateToMyComplaints = { navController.navigate(Route.MyComplaints.route) }
+            )
+        }
         composable(Route.Community.route) {
             CommunityScreen(
                 onNavigateToMap = { navController.navigate(Route.Map.route) },
-                onNavigateToIssueDetail = { id -> navController.navigate(Route.IssueDetail.route) } // Example
+                onNavigateToIssueDetail = { id -> navController.navigate("${Route.IssueDetail.route}/$id") }
             )
         }
 
@@ -351,11 +371,35 @@ private fun AppNavHost(
             ProfileScreen(
                 userFirstName = userFirstName,
                 userEmail = email,
-                onLogout = { if (isAuthed) onLogoutClick() else onLoginDemoClick() }
+                onLogout = { if (isAuthed) onLogoutClick() else onLoginDemoClick("citizen") }
             )
         }
 
-        composable(Route.MyComplaints.route) { SimpleScreen("My Complaints") }
-        composable(Route.IssueDetail.route) { SimpleScreen("Issue Detail") }
+        // We can just leave MyComplaints empty or basic for now,
+        // since SimpleScreen was removed.
+        composable(Route.MyComplaints.route) {
+            Text("My Complaints", modifier = Modifier.padding(16.dp))
+        }
+
+        composable("${Route.IssueDetail.route}/{issueId}") { backStackEntry ->
+            val issueId = backStackEntry.arguments?.getString("issueId") ?: "1"
+            com.example.parivartan.ui.issue.IssueDetailScreen(
+                issueId = issueId,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Route.AdminDashboard.route) {
+            com.example.parivartan.ui.admin.AdminDashboardScreen(
+                onNavigateGlobalAnalytics = { /* TODO */ },
+                onNavigateDepartmentManagement = { /* TODO */ }
+            )
+        }
+
+        composable(Route.DepartmentDashboard.route) {
+            com.example.parivartan.ui.department.DepartmentDashboardScreen(
+                onNavigateGrievances = { /* TODO */ }
+            )
+        }
     }
 }

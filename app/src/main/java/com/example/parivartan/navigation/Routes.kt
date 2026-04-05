@@ -22,4 +22,7 @@ sealed interface Route {
 
     data object MyComplaints : Route { override val route = "my_complaints" }
     data object IssueDetail : Route { override val route = "issue_detail" }
+
+    data object AdminDashboard : Route { override val route = "admin_dashboard" }
+    data object DepartmentDashboard : Route { override val route = "department_dashboard" }
 }

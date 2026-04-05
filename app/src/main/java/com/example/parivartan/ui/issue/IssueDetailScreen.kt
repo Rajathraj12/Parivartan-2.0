@@ -350,4 +350,3 @@ fun UpdatesTab() {
         }
     }
 }
-

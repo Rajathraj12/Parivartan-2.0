@@ -1,4 +1,4 @@
-package com.example.parivartan.ui.report
+package com.example.parivartan.ui.citizen.report
 
 import android.net.Uri
 import android.widget.Toast
