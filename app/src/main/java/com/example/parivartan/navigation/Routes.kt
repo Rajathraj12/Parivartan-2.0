@@ -12,6 +12,8 @@ sealed interface Route {
 
     data object Intro : Route { override val route = "intro" }
     data object Login : Route { override val route = "login" }
+    data object StaffLogin : Route { override val route = "staff_login" }
+    data object DepartmentLogin : Route { override val route = "department_login" }
     data object Signup : Route { override val route = "signup" }
 
     data object Home : Route { override val route = "home" }
@@ -24,5 +26,12 @@ sealed interface Route {
     data object IssueDetail : Route { override val route = "issue_detail" }
 
     data object AdminDashboard : Route { override val route = "admin_dashboard" }
-    data object DepartmentDashboard : Route { override val route = "department_dashboard" }
+    data object DepartmentDashboard : Route { override val route = "department_dashboard/{departmentId}" }
+    data object StaffDashboard : Route { override val route = "staff_dashboard" }
+    data object StaffIssueList : Route { override val route = "staff_issue_list" }
+    data object StaffIssueDetail : Route { override val route = "staff_issue_detail" }
+    data object StaffMapView : Route { override val route = "staff_map_view" }
+    data object StaffNotifications : Route { override val route = "staff_notifications" }
+    data object StaffSettings : Route { override val route = "staff_settings" }
+    data object StaffWorkHistory : Route { override val route = "staff_work_history" }
 }

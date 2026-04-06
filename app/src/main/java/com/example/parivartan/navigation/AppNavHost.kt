@@ -48,6 +48,13 @@ import com.example.parivartan.ui.citizen.profile.ProfileScreen
 import com.example.parivartan.ui.citizen.map.MapScreen
 import com.example.parivartan.ui.citizen.report.ReportIssueScreen
 import com.example.parivartan.ui.intro.IntroScreen
+import com.example.parivartan.ui.staff.StaffLoginScreen
+import com.example.parivartan.ui.staff.StaffIssueDetailScreen
+import com.example.parivartan.ui.staff.StaffIssueListScreen
+import com.example.parivartan.ui.staff.StaffMapViewScreen
+import com.example.parivartan.ui.staff.StaffNotificationsScreen
+import com.example.parivartan.ui.staff.StaffSettingsScreen
+import com.example.parivartan.ui.staff.StaffWorkHistoryScreen
 import androidx.navigation.NavHostController
 import androidx.compose.ui.draw.shadow
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -94,12 +101,14 @@ fun ParivartanApp(authRepository: AuthRepository) {
                     Route.Splash.route,
                     Route.Intro.route,
                     Route.Signup.route,
+                    Route.StaffLogin.route,
+                    Route.DepartmentLogin.route,
                 )
 
                 // If we're not on auth stack, go to the entry of auth.
                 if (!isOnAuthScreen) {
                     navController.navigate(Route.Intro.route) {
-                        popUpTo(Route.Splash.route) { inclusive = true }
+                        popUpTo(0) { inclusive = true }
                         launchSingleTop = true
                     }
                     return@LaunchedEffect
@@ -108,7 +117,7 @@ fun ParivartanApp(authRepository: AuthRepository) {
                 // If we're on Splash, advance to Intro so user sees content.
                 if (currentRoute == Route.Splash.route || currentRoute == null) {
                     navController.navigate(Route.Intro.route) {
-                        popUpTo(Route.Splash.route) { inclusive = true }
+                        popUpTo(0) { inclusive = true }
                         launchSingleTop = true
                     }
                 }
@@ -118,6 +127,8 @@ fun ParivartanApp(authRepository: AuthRepository) {
                 val isOnAuthScreen = currentRoute?.startsWith(Route.Login.route) == true || currentRoute in setOf(
                     Route.Splash.route,
                     Route.Intro.route,
+                    Route.StaffLogin.route,
+                    Route.DepartmentLogin.route,
                     Route.Signup.route,
                     null
                 )
@@ -128,17 +139,24 @@ fun ParivartanApp(authRepository: AuthRepository) {
                     // For now, if we don't have a role in the ViewModel, default to "citizen" -> Home
                     if (role == "admin") {
                         navController.navigate(Route.AdminDashboard.route) {
-                            popUpTo(Route.Splash.route) { inclusive = true }
+                            popUpTo(0) { inclusive = true }
                             launchSingleTop = true
                         }
-                    } else if (role == "department" || role == "staff") {
-                        navController.navigate(Route.DepartmentDashboard.route) {
-                            popUpTo(Route.Splash.route) { inclusive = true }
+                    } else if (role.startsWith("department")) {
+                        // Extract department ID if present
+                        val deptId = role.substringAfter(":", "pwd") // Default to pwd
+                        navController.navigate("department_dashboard/$deptId") {
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    } else if (role == "staff") {
+                        navController.navigate(Route.StaffDashboard.route) {
+                            popUpTo(0) { inclusive = true }
                             launchSingleTop = true
                         }
                     } else {
                         navController.navigate(Route.Home.route) {
-                            popUpTo(Route.Splash.route) { inclusive = true }
+                            popUpTo(0) { inclusive = true }
                             launchSingleTop = true
                         }
                     }
@@ -178,7 +196,7 @@ fun ParivartanApp(authRepository: AuthRepository) {
                                 selected = selected,
                                 onClick = {
                                     navController.navigate(tab.route.route) {
-                                        popUpTo(Route.Splash.route) { saveState = true }
+                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
                                         launchSingleTop = true
                                         restoreState = true
                                     }
@@ -222,7 +240,7 @@ fun ParivartanApp(authRepository: AuthRepository) {
                                 selected = selected,
                                 onClick = {
                                     navController.navigate(tab.route.route) {
-                                        popUpTo(Route.Splash.route) { saveState = true }
+                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
                                         launchSingleTop = true
                                         restoreState = true
                                     }
@@ -305,8 +323,26 @@ private fun AppNavHost(
             IntroScreen(
                 onSkip = { navController.navigate("${Route.Login.route}/citizen") },
                 onGetStarted = { role ->
-                    navController.navigate("${Route.Login.route}/$role")
+                    if (role == "staff") {
+                        navController.navigate(Route.StaffLogin.route)
+                    } else if (role == "department") {
+                        navController.navigate(Route.DepartmentLogin.route)
+                    } else {
+                        navController.navigate("${Route.Login.route}/$role")
+                    }
                 },
+            )
+        }
+
+        composable(Route.DepartmentLogin.route) {
+            com.example.parivartan.ui.department.DepartmentLoginScreen(
+                onLoginDemoClick = { role -> onLoginDemoClick(role) }
+            )
+        }
+
+        composable(Route.StaffLogin.route) {
+            StaffLoginScreen(
+                onLoginDemoClick = { role -> onLoginDemoClick(role) }
             )
         }
 
@@ -396,9 +432,65 @@ private fun AppNavHost(
             )
         }
 
-        composable(Route.DepartmentDashboard.route) {
+        composable(Route.DepartmentDashboard.route) { backStackEntry ->
+            val departmentId = backStackEntry.arguments?.getString("departmentId") ?: "pwd"
             com.example.parivartan.ui.department.DepartmentDashboardScreen(
-                onNavigateGrievances = { /* TODO */ }
+                onNavigateGrievances = { /* TODO */ },
+                departmentId = departmentId,
+                onLogout = onLogoutClick
+            )
+        }
+
+        composable(Route.StaffDashboard.route) {
+            com.example.parivartan.ui.staff.StaffDashboardScreen(
+                onNavigateIssues = { navController.navigate(Route.StaffIssueList.route) },
+                onNavigateMap = { navController.navigate(Route.StaffMapView.route) },
+                onNavigateNotifications = { navController.navigate(Route.StaffNotifications.route) },
+                onNavigateSettings = { navController.navigate(Route.StaffSettings.route) },
+                onNavigateToIssueDetail = { id -> navController.navigate("${Route.StaffIssueDetail.route}/$id") }
+            )
+        }
+
+        composable(Route.StaffIssueList.route) {
+            StaffIssueListScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToIssueDetail = { id -> navController.navigate("${Route.StaffIssueDetail.route}/$id") }
+            )
+        }
+
+        composable(Route.StaffMapView.route) {
+            StaffMapViewScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToIssueDetail = { id -> navController.navigate("${Route.StaffIssueDetail.route}/$id") }
+            )
+        }
+
+        composable("${Route.StaffIssueDetail.route}/{issueId}") { backStackEntry ->
+            val issueId = backStackEntry.arguments?.getString("issueId") ?: "1"
+            StaffIssueDetailScreen(
+                issueId = issueId,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Route.StaffNotifications.route) {
+            StaffNotificationsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToIssueDetail = { id -> navController.navigate("${Route.StaffIssueDetail.route}/$id") }
+            )
+        }
+
+        composable(Route.StaffSettings.route) {
+            StaffSettingsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateWorkHistory = { navController.navigate(Route.StaffWorkHistory.route) },
+                onLogoutClick = { onLogoutClick() }
+            )
+        }
+
+        composable(Route.StaffWorkHistory.route) {
+            StaffWorkHistoryScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }
