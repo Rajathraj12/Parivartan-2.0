@@ -282,7 +282,8 @@ fun ParivartanApp(authRepository: AuthRepository) {
             onLoginDemoClick = { role -> appViewModel.signInDemo(role) },
             onLogoutClick = { appViewModel.signOut() },
             onSplashFinished = { isSplashFinished = true },
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            appViewModel = appViewModel
         )
     }
 }
@@ -306,7 +307,8 @@ private fun AppNavHost(
     onLoginDemoClick: (String) -> Unit,
     onLogoutClick: () -> Unit,
     onSplashFinished: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    appViewModel: AppViewModel? = null
 ) {
     val startDestination = Route.Splash.route
 
@@ -349,13 +351,24 @@ private fun AppNavHost(
         composable("${Route.Login.route}/{role}") { backStackEntry ->
             val role = backStackEntry.arguments?.getString("role") ?: "citizen"
             var isLoading by rememberSaveable { mutableStateOf(false) }
+            var authError by rememberSaveable { mutableStateOf<String?>(null) }
 
             LoginScreen(
                 onBack = { navController.popBackStack() },
-                onLogin = { _, _ ->
-                    onLoginDemoClick(role)
+                onLogin = { email, password ->
+                    isLoading = true
+                    authError = null
+                    if (appViewModel != null) {
+                        appViewModel.signInWithEmail(email, password, role) { error ->
+                            isLoading = false
+                            authError = error
+                        }
+                    } else {
+                        onLoginDemoClick(role)
+                    }
                 },
                 isLoading = isLoading,
+                authError = authError,
                 onForgotPassword = {
                     // placeholder
                 },
@@ -365,7 +378,15 @@ private fun AppNavHost(
 
         composable(Route.Signup.route) {
             SignupScreen(
-                navController = navController
+                navController = navController,
+                onSignup = { email, password, onError, onSuccess ->
+                    if (appViewModel != null) {
+                        appViewModel.signUpWithEmail(email, password, "citizen", onError, onSuccess)
+                    } else {
+                        // Demo mode
+                        onSuccess()
+                    }
+                }
             )
         }
 

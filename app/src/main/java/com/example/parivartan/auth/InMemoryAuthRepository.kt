@@ -17,6 +17,14 @@ class InMemoryAuthRepository : AuthRepository {
         _authState.value = AuthState.Authenticated(displayName = displayName)
     }
 
+    override suspend fun signInWithEmail(email: String, password: String): Result<Unit> {
+        return Result.success(Unit)
+    }
+
+    override suspend fun signUpWithEmail(email: String, password: String): Result<Unit> {
+        return Result.success(Unit)
+    }
+
     override fun signOut() {
         _authState.value = AuthState.Unauthenticated
     }

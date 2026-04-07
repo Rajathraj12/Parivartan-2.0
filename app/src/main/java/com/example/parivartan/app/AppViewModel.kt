@@ -50,5 +50,28 @@ class AppViewModel(
         authRepository.signIn(displayName = role.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() })
     }
 
+    fun signInWithEmail(email: String, password: String, role: String, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            currentRole = role
+            val result = authRepository.signInWithEmail(email, password)
+            if (result.isFailure) {
+                onError(result.exceptionOrNull()?.message ?: "Login failed")
+            }
+        }
+    }
+
+    fun signUpWithEmail(email: String, password: String, role: String, onError: (String) -> Unit, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            currentRole = role
+            val result = authRepository.signUpWithEmail(email, password)
+            if (result.isSuccess) {
+                authRepository.signIn(displayName = "Citizen")
+                onSuccess()
+            } else {
+                onError(result.exceptionOrNull()?.message ?: "Signup failed")
+            }
+        }
+    }
+
     fun signOut() = authRepository.signOut()
 }

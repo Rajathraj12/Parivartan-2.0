@@ -26,7 +26,10 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 
 @Composable
-fun SignupScreen(navController: NavController) {
+fun SignupScreen(
+    navController: NavController,
+    onSignup: (String, String, (String) -> Unit, () -> Unit) -> Unit = { _, _, _, _ -> }
+) {
     var step by remember { mutableStateOf(1) } // 1 for form, 2 for success
 
     var fullName by remember { mutableStateOf("") }
@@ -38,6 +41,7 @@ fun SignupScreen(navController: NavController) {
     var showPassword by remember { mutableStateOf(false) }
     var showConfirmPassword by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var authError by remember { mutableStateOf<String?>(null) }
 
     val passwordsMatch = confirmPassword.isEmpty() || password == confirmPassword
     val isFormValid = fullName.isNotBlank() && email.isNotBlank() && password.isNotBlank() &&
@@ -149,14 +153,25 @@ fun SignupScreen(navController: NavController) {
                         Spacer(modifier = Modifier.height(30.dp))
 
                         // Signup Button
+                        if (authError != null) {
+                            Text(
+                                text = authError ?: "",
+                                color = Color(0xFFEF4444),
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
                         Button(
                             onClick = {
                                 isLoading = true
-                                // Simulate network request for bypassing auth
-                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                authError = null
+                                onSignup(email.trim(), password, { error ->
+                                    isLoading = false
+                                    authError = error
+                                }, {
                                     isLoading = false
                                     step = 2
-                                }, 1000)
+                                })
                             },
                             modifier = Modifier
                                 .fillMaxWidth()

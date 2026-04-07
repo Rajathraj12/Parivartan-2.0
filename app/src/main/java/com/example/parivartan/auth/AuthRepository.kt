@@ -10,5 +10,7 @@ interface AuthRepository {
     val authState: StateFlow<AuthState>
 
     fun signIn(displayName: String? = null)
+    suspend fun signInWithEmail(email: String, password: String): Result<Unit>
+    suspend fun signUpWithEmail(email: String, password: String): Result<Unit>
     fun signOut()
 }
