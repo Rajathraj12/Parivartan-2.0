@@ -30,6 +30,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.parivartan.R
+
+private val DeptColor = Color(0xFF14B8A6)
+private val DarkDeptColor = Color(0xFF0D9488)
+private val Slate50 = Color(0xFFF8FAFC)
+
+private fun generateCaptcha(): String {
+    val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    return (1..6).map { chars.random() }.joinToString("")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,11 +62,9 @@ fun DepartmentLoginScreen(
     var departmentMenuExpanded by remember { mutableStateOf(false) }
 
     // Captcha Logic
-    var num1 by remember { mutableStateOf((1..10).random()) }
-    var num2 by remember { mutableStateOf((1..10).random()) }
+    var captchaText by remember { mutableStateOf(generateCaptcha()) }
     val refreshCaptcha = {
-        num1 = (1..10).random()
-        num2 = (1..10).random()
+        captchaText = generateCaptcha()
         captchaAnswer = ""
     }
 
@@ -80,231 +94,261 @@ fun DepartmentLoginScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(Slate50)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp)
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .imePadding()
     ) {
+        // Modern Header
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(DeptColor, DarkDeptColor)
+                    )
+                )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 64.dp, bottom = 48.dp, start = 24.dp, end = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.icon),
+                    contentDescription = "Parivartan Logo",
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White)
+                        .padding(8.dp),
+                    contentScale = ContentScale.Fit
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Department Portal",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Official Login",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Form Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .offset(y = (-32).dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                // Department Dropdown
+                ExposedDropdownMenuBox(
+                    expanded = departmentMenuExpanded,
+                    onExpandedChange = { departmentMenuExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = departments.find { it.first == selectedDepartment }?.second ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Select Department") },
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, tint = DeptColor) },
+                        leadingIcon = { Icon(Icons.Filled.Business, null, tint = DeptColor) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = DeptColor,
+                            focusedLabelColor = DeptColor,
+                            cursorColor = DeptColor
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = departmentMenuExpanded,
+                        onDismissRequest = { departmentMenuExpanded = false }
+                    ) {
+                        departments.forEach { (id, name) ->
+                            DropdownMenuItem(
+                                text = { Text(name) },
+                                onClick = {
+                                    selectedDepartment = id
+                                    departmentMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Email Input
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email Address") },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.Email, "Email", tint = DeptColor)
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = DeptColor,
+                        focusedLabelColor = DeptColor,
+                        cursorColor = DeptColor
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Password Input
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.Lock, "Password", tint = DeptColor)
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { showPassword = !showPassword }) {
+                            Icon(
+                                if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                contentDescription = null,
+                                tint = Color.Gray
+                            )
+                        }
+                    },
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = DeptColor,
+                        focusedLabelColor = DeptColor,
+                        cursorColor = DeptColor
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Captcha
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFF0FDFA), RoundedCornerShape(12.dp))
+                        .border(1.dp, Color(0xFFCCFBF1), RoundedCornerShape(12.dp))
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "Solve Captcha",
+                            fontSize = 12.sp,
+                            color = Color(0xFF0F766E),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = captchaText,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF115E59),
+                                modifier = Modifier.background(Color.White, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp).border(1.dp, Color.LightGray, RoundedCornerShape(4.dp))
+                            )
+                            IconButton(onClick = refreshCaptcha) {
+                                Icon(Icons.Outlined.Refresh, "Refresh", tint = Color(0xFF0F766E))
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = captchaAnswer,
+                        onValueChange = { captchaAnswer = it },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = DeptColor,
+                            unfocusedBorderColor = Color(0xFFCCFBF1)
+                        ),
+                        modifier = Modifier.width(100.dp),
+                        textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
+                        placeholder = { Text("Text", fontSize = 12.sp) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                Button(
+                    onClick = {
+                        isLoading = true
+                        coroutineScope.launch {
+                            delay(800) // fake load
+                            onLoginDemoClick("department")
+                        }
+                    },
+                    enabled = !isLoading && email.isNotBlank() && password.isNotBlank() && selectedDepartment.isNotBlank() && captchaAnswer.equals(captchaText, ignoreCase = true),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DeptColor,
+                        disabledContainerColor = DeptColor.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            strokeWidth = 2.5.dp,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Text(
+                            text = "Secure Login",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 20.dp, bottom = 30.dp)
+                .padding(vertical = 20.dp)
         ) {
-            Icon(
-                imageVector = Icons.Filled.Business,
-                contentDescription = "Department",
-                tint = Color(0xFF2E7D32),
-                modifier = Modifier.size(64.dp)
+            Text(
+                text = "Authorized Personnel Only",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF6B7280)
             )
             Text(
-                text = "Department Portal",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF212121),
-                modifier = Modifier.padding(top = 16.dp)
+                text = "Tracked via IP & ID",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF9CA3AF)
             )
-            Text(
-                text = "Official Login",
-                fontSize = 16.sp,
-                color = Color(0xFF6B7280),
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 32.dp)
-        ) {
-            // Email Input
-            Text(
-                text = "Email Address",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF212121),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                placeholder = { Text("Enter your email address", color = Color(0xFF9CA3AF)) },
-                leadingIcon = {
-                    Icon(Icons.Outlined.Email, "Email", tint = Color(0xFF6B7280))
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF2E7D32),
-                    unfocusedBorderColor = Color(0xFFD1D5DB)
-                ),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
-            )
-
-            // Password Input
-            Text(
-                text = "Password",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF212121),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                placeholder = { Text("Enter your password", color = Color(0xFF9CA3AF)) },
-                leadingIcon = {
-                    Icon(Icons.Outlined.Lock, "Password", tint = Color(0xFF6B7280))
-                },
-                trailingIcon = {
-                    IconButton(onClick = { showPassword = !showPassword }) {
-                        Icon(
-                            if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                            contentDescription = null,
-                            tint = Color(0xFF6B7280)
-                        )
-                    }
-                },
-                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF2E7D32),
-                    unfocusedBorderColor = Color(0xFFD1D5DB)
-                ),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
-            )
-
-            // Department Dropdown
-            Text(
-                text = "Department",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF212121),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            ExposedDropdownMenuBox(
-                expanded = departmentMenuExpanded,
-                onExpandedChange = { departmentMenuExpanded = it }
-            ) {
-                OutlinedTextField(
-                    value = departments.find { it.first == selectedDepartment }?.second ?: "Select Department",
-                    onValueChange = {},
-                    readOnly = true,
-                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF2E7D32),
-                        unfocusedBorderColor = Color(0xFFD1D5DB)
-                    ),
-                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth().padding(bottom = 20.dp)
-                )
-                ExposedDropdownMenu(
-                    expanded = departmentMenuExpanded,
-                    onDismissRequest = { departmentMenuExpanded = false }
-                ) {
-                    departments.forEach { (id, label) ->
-                        DropdownMenuItem(
-                            text = { Text(label) },
-                            onClick = {
-                                selectedDepartment = id
-                                departmentMenuExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Captcha Section
-            Text(
-                text = "Security Verification",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF212121),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFFE8F5E8), RoundedCornerShape(12.dp))
-                    .border(2.dp, Color(0xFF66BB6A), RoundedCornerShape(12.dp))
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "$num1 + $num2 = ?",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1B5E20),
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center
-                )
-                IconButton(
-                    onClick = refreshCaptcha,
-                    modifier = Modifier.background(Color(0xFFFF7043), CircleShape)
-                ) {
-                    Icon(Icons.Outlined.Refresh, contentDescription = "Refresh Captcha", tint = Color.White)
-                }
-            }
-
-            OutlinedTextField(
-                value = captchaAnswer,
-                onValueChange = { captchaAnswer = it },
-                placeholder = { Text("Enter your answer", color = Color(0xFF9CA3AF)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF2E7D32),
-                    unfocusedBorderColor = Color(0xFFD1D5DB)
-                ),
-                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center, fontSize = 20.sp, color = Color(0xFF1B5E20)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp, bottom = 24.dp)
-            )
-
-            // Submit Button
-            Button(
-                onClick = {
-                    if (captchaAnswer.toIntOrNull() != (num1 + num2)) {
-                        /* Add a way to show a toast or alert, or simply do nothing right now */
-                        refreshCaptcha()
-                    } else {
-                        isLoading = true
-                        coroutineScope.launch {
-                            delay(800) // fake load (auth bypassed)
-                            onLoginDemoClick("department:$selectedDepartment")
-                        }
-                    }
-                },
-                enabled = !isLoading && email.isNotBlank() && password.isNotBlank() && selectedDepartment.isNotBlank() && captchaAnswer.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF2E7D32),
-                    disabledContainerColor = Color(0xFF9CA3AF)
-                ),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp)
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                } else {
-                    Text(
-                        text = "Login",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
-                }
-            }
-
-            TextButton(
-                onClick = { /* TODO Placeholder */ },
-                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp)
-            ) {
-                Text("Forgot Password?", color = Color(0xFF1565C0))
-            }
         }
     }
 }
-
