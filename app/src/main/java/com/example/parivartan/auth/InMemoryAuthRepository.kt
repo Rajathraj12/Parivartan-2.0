@@ -21,7 +21,11 @@ class InMemoryAuthRepository : AuthRepository {
         return Result.success(Unit)
     }
 
-    override suspend fun signUpWithEmail(email: String, password: String): Result<Unit> {
+    override suspend fun signUpWithEmail(fullName: String, email: String, password: String): Result<Unit> {
+        return Result.success(Unit)
+    }
+
+    override suspend fun signInWithGoogleToken(idToken: String): Result<Unit> {
         return Result.success(Unit)
     }
 

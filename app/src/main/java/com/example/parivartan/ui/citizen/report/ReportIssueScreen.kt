@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.example.parivartan.data.IssueModel
+import com.example.parivartan.data.IssueRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,6 +84,7 @@ fun ReportIssueScreen(
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val issueRepository = remember { IssueRepository() }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -402,9 +405,27 @@ fun ReportIssueScreen(
                 onClick = {
                     coroutineScope.launch {
                         isSubmitting = true
-                        delay(2000) // Fake submission delay
-                        Toast.makeText(context, "Issue reported successfully!", Toast.LENGTH_LONG).show()
-                        onNavigateToMyComplaints()
+                        val newIssue = IssueModel(
+                            title = title.trim(),
+                            description = description.trim(),
+                            department = department.trim(),
+                            locationAddress = locationAddress ?: "",
+                            locationLat = locationCoords?.first ?: 0.0,
+                            locationLng = locationCoords?.second ?: 0.0,
+                            photos = mediaFiles.map { it.toString() }
+                        )
+                        val result = issueRepository.submitIssue(newIssue)
+                        isSubmitting = false
+                        if (result.isSuccess) {
+                            Toast.makeText(context, "Issue reported successfully!", Toast.LENGTH_LONG).show()
+                            // Get the generated ID if passed back, or just use the ID we had, or mock navigating.
+                            // Currently submitIssue returns Result<Unit>, so to navigate to its details we'd need ID.
+                            // We can just navigate back to Home or map if we don't have the definitive ID, or
+                            // we can update submitIssue to return the ID. For now we navigate back to community/home mock details.
+                            onNavigateToIssueDetail(newIssue.id.ifEmpty { "1" })
+                        } else {
+                            Toast.makeText(context, "Failed to submit issue: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),

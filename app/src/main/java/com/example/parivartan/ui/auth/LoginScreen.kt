@@ -60,9 +60,19 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.CustomCredential
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import kotlinx.coroutines.launch
+import android.widget.Toast
 import com.example.parivartan.R
 
 private val Teal500 = Color(0xFF14B8A6)
@@ -88,6 +98,7 @@ private fun generateCaptcha(): String {
 fun LoginScreen(
     onBack: () -> Unit,
     onLogin: (email: String, password: String) -> Unit,
+    onGoogleSignIn: (idToken: String) -> Unit,
     isLoading: Boolean,
     modifier: Modifier = Modifier,
     authError: String? = null,
@@ -104,6 +115,9 @@ fun LoginScreen(
         captchaText = generateCaptcha()
         captchaAnswer = ""
     }
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     Column(
         modifier = modifier
@@ -377,7 +391,32 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 OutlinedButton(
-                    onClick = { /* TODO: Implement Google Sign In */ },
+                    onClick = {
+                        val clientID = context.getString(R.string.default_web_client_id)
+                        val credentialManager = CredentialManager.create(context)
+                        val googleIdOption = GetGoogleIdOption.Builder()
+                            .setFilterByAuthorizedAccounts(false)
+                            .setServerClientId(clientID)
+                            .build()
+                        val request = GetCredentialRequest.Builder()
+                            .addCredentialOption(googleIdOption)
+                            .build()
+
+                        coroutineScope.launch {
+                            try {
+                                val result = credentialManager.getCredential(context, request)
+                                val credential = result.credential
+                                if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                                    onGoogleSignIn(googleIdTokenCredential.idToken)
+                                } else {
+                                    Toast.makeText(context, "Unexpected credential type", Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Google Sign-in failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),

@@ -28,7 +28,7 @@ import androidx.navigation.NavController
 @Composable
 fun SignupScreen(
     navController: NavController,
-    onSignup: (String, String, (String) -> Unit, () -> Unit) -> Unit = { _, _, _, _ -> }
+    onSignup: (String, String, String, (String) -> Unit, () -> Unit) -> Unit = { _, _, _, _, _ -> }
 ) {
     var step by remember { mutableStateOf(1) } // 1 for form, 2 for success
 
@@ -165,7 +165,7 @@ fun SignupScreen(
                             onClick = {
                                 isLoading = true
                                 authError = null
-                                onSignup(email.trim(), password, { error ->
+                                onSignup(fullName.trim(), email.trim(), password, { error ->
                                     isLoading = false
                                     authError = error
                                 }, {

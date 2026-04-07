@@ -367,6 +367,18 @@ private fun AppNavHost(
                         onLoginDemoClick(role)
                     }
                 },
+                onGoogleSignIn = { idToken ->
+                    isLoading = true
+                    authError = null
+                    if (appViewModel != null) {
+                        appViewModel.signInWithGoogle(idToken, role) { error ->
+                            isLoading = false
+                            authError = error
+                        }
+                    } else {
+                        onLoginDemoClick(role)
+                    }
+                },
                 isLoading = isLoading,
                 authError = authError,
                 onForgotPassword = {
@@ -379,9 +391,9 @@ private fun AppNavHost(
         composable(Route.Signup.route) {
             SignupScreen(
                 navController = navController,
-                onSignup = { email, password, onError, onSuccess ->
+                onSignup = { fullName, email, password, onError, onSuccess ->
                     if (appViewModel != null) {
-                        appViewModel.signUpWithEmail(email, password, "citizen", onError, onSuccess)
+                        appViewModel.signUpWithEmail(fullName, email, password, "citizen", onError, onSuccess)
                     } else {
                         // Demo mode
                         onSuccess()

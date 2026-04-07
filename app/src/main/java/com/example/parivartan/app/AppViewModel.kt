@@ -60,12 +60,22 @@ class AppViewModel(
         }
     }
 
-    fun signUpWithEmail(email: String, password: String, role: String, onError: (String) -> Unit, onSuccess: () -> Unit) {
+    fun signInWithGoogle(idToken: String, role: String, onError: (String) -> Unit) {
         viewModelScope.launch {
             currentRole = role
-            val result = authRepository.signUpWithEmail(email, password)
+            val result = authRepository.signInWithGoogleToken(idToken)
+            if (result.isFailure) {
+                onError(result.exceptionOrNull()?.message ?: "Google Sign-in failed")
+            }
+        }
+    }
+
+    fun signUpWithEmail(fullName: String, email: String, password: String, role: String, onError: (String) -> Unit, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            currentRole = role
+            val result = authRepository.signUpWithEmail(fullName, email, password)
             if (result.isSuccess) {
-                authRepository.signIn(displayName = "Citizen")
+                authRepository.signIn(displayName = fullName)
                 onSuccess()
             } else {
                 onError(result.exceptionOrNull()?.message ?: "Signup failed")
