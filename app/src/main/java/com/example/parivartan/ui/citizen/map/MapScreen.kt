@@ -45,7 +45,7 @@ data class MapIssue(
     val longitude: Double
 )
 
-val mockMapIssues = listOf(
+val allMockMapIssues = listOf(
     MapIssue("1", "Broken Streetlight", "Streetlight on Main St is out.", "pending", "Main St", "Infrastructure", "2026-03-29", 15, 31.3300, 75.5844),
     MapIssue("2", "Pothole", "Large pothole on 5th Ave.", "in-progress", "5th Ave", "Roads", "2026-03-28", 22, 31.3320, 75.5810),
     MapIssue("3", "Trash Overflow", "Garbage bin overflowing.", "resolved", "Central Park", "Sanitation", "2026-03-25", 5, 31.3280, 75.5860)
@@ -63,7 +63,11 @@ fun MapScreen(
     onNavigateToReport: () -> Unit,
     onNavigateToIssueDetail: (String) -> Unit
 ) {
-    var issues by remember { mutableStateOf(mockMapIssues) }
+    val email = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email
+    val showMock = email == "android@gmail.com" || email == "test@gmail.com"
+    val mockMapIssues = remember(showMock) { if (showMock) allMockMapIssues else emptyList() }
+
+    var issues by remember(showMock) { mutableStateOf(mockMapIssues) }
     var filters by remember { mutableStateOf(MapFilters()) }
     var selectedIssue by remember { mutableStateOf<MapIssue?>(null) }
     var showFiltersModal by remember { mutableStateOf(false) }

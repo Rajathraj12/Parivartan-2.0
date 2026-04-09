@@ -50,9 +50,11 @@ fun StaffIssueListScreen(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var statusFilter by remember { mutableStateOf("all") }
+    val email = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email
+    val showMock = email == "android@gmail.com" || email == "test@gmail.com"
 
-    val mockIssues = remember {
-        listOf(
+    val mockIssues = remember(showMock) {
+        if (!showMock) emptyList() else listOf(
             IssueItem("101", "Pothole on Main St", "Large pothole causing traffic", "high", "pending", "Main St, City Center", 15, 1, System.currentTimeMillis() - 3600000),
             IssueItem("102", "Street light not working", "Pitch dark at night", "medium", "in-progress", "Oak Avenue", 5, 0, System.currentTimeMillis() - 86400000),
             IssueItem("103", "Garbage collection missed", "Smells bad", "low", "resolved", "Pine Street", 0, 2, System.currentTimeMillis() - 172800000),

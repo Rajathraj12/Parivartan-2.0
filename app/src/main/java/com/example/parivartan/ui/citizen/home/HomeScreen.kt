@@ -103,9 +103,12 @@ fun HomeScreen(
     onOpenIssueDetail: (issueId: String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val email = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email
+    val showMock = email == "android@gmail.com" || email == "test@gmail.com"
+
     // Mock data for now (no auth/backend as requested)
-    val urgentIssues = remember {
-        listOf(
+    val urgentIssues = remember(showMock) {
+        if (!showMock) emptyList() else listOf(
             Issue("1", "Garbage overflow near market", Status.Pending, "Central", upvotes = 42),
             Issue("2", "Pothole on main road", Status.InProgress, "North", upvotes = 31),
             Issue("3", "Streetlight not working", Status.UnderReview, "East", upvotes = 27),
@@ -114,8 +117,8 @@ fun HomeScreen(
         )
     }
 
-    val recentIssues = remember {
-        listOf(
+    val recentIssues = remember(showMock) {
+        if (!showMock) emptyList() else listOf(
             Issue("11", "Broken sidewalk", Status.Pending, "Central", upvotes = 3),
             Issue("12", "Stray dog complaint", Status.UnderReview, "East", upvotes = 7),
             Issue("13", "Open manhole", Status.InProgress, "North", upvotes = 11),

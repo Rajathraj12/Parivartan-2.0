@@ -418,11 +418,8 @@ fun ReportIssueScreen(
                         isSubmitting = false
                         if (result.isSuccess) {
                             Toast.makeText(context, "Issue reported successfully!", Toast.LENGTH_LONG).show()
-                            // Get the generated ID if passed back, or just use the ID we had, or mock navigating.
-                            // Currently submitIssue returns Result<Unit>, so to navigate to its details we'd need ID.
-                            // We can just navigate back to Home or map if we don't have the definitive ID, or
-                            // we can update submitIssue to return the ID. For now we navigate back to community/home mock details.
-                            onNavigateToIssueDetail(newIssue.id.ifEmpty { "1" })
+                            val issueId = result.getOrNull() ?: newIssue.id.ifEmpty { "1" }
+                            onNavigateToIssueDetail(issueId)
                         } else {
                             Toast.makeText(context, "Failed to submit issue: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                         }
