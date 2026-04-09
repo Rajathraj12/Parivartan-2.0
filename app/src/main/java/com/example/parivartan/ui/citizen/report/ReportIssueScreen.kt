@@ -1,5 +1,14 @@
 package com.example.parivartan.ui.citizen.report
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.location.Geocoder
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import java.io.File
+import java.util.Locale
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -34,6 +43,9 @@ import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.example.parivartan.data.IssueModel
 import com.example.parivartan.data.IssueRepository
 
@@ -47,29 +59,29 @@ fun ReportIssueScreen(
     // State for form
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var department by remember { mutableStateOf("") }
 
     // State for Dropdown
     var expanded by remember { mutableStateOf(false) }
+    var departmentId by remember { mutableStateOf("") }
     val departments = listOf(
-        "PWD (Public Works Department)",
-        "Municipal Corporation",
-        "Traffic Police",
-        "Water & Sanitation",
-        "PSPCL (Punjab State Power)",
-        "Health & Welfare",
-        "Civil Surgeon",
-        "Punjab Police",
-        "Education Department",
-        "Agriculture Department",
-        "Food & Civil Supplies",
-        "Punjab Roadways",
-        "RTO (Regional Transport)",
-        "Revenue Department",
-        "Social Security",
-        "Pollution Control Board",
-        "Forest Department",
-        "Disaster Management"
+        "pwd" to "Public Works Department (PWD)",
+        "municipal" to "Municipal Corporation",
+        "traffic-police" to "Traffic Police",
+        "water-sanitation" to "Water Supply & Sanitation",
+        "pspcl" to "PSPCL",
+        "health-welfare" to "Health & Family Welfare",
+        "civil-surgeon" to "Civil Surgeon's Office",
+        "punjab-police" to "Punjab Police",
+        "education" to "School Education Department",
+        "agriculture" to "Agriculture Department",
+        "food-civil-supplies" to "Food & Civil Supplies",
+        "roadways" to "Punjab Roadways / PRTC",
+        "rto" to "Regional Transport Office (RTO)",
+        "revenue" to "Revenue Department",
+        "social-security" to "Social Security & Women & Child",
+        "pollution-control" to "Punjab Pollution Control Board",
+        "forest" to "Forest Department",
+        "disaster-management" to "Disaster Management Authority"
     )
 
     // Location state mock
@@ -98,8 +110,70 @@ fun ReportIssueScreen(
         }
     }
 
+    var cameraUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            cameraUri?.let {
+                if (mediaFiles.size < 5) {
+                    mediaFiles = mediaFiles + it
+                } else {
+                    Toast.makeText(context, "Limit Reached: Maximum 5 images allowed", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions.entries.all { it.value }
+        if (granted) {
+            coroutineScope.launch {
+                try {
+                    val hasPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    if(hasPerm) {
+                        @Suppress("MissingPermission")
+                        val location = fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).await()
+                        if (location != null) {
+                            try {
+                                val geocoder = Geocoder(context, Locale.getDefault())
+                                @Suppress("DEPRECATION")
+                                val addresses = withContext(Dispatchers.IO) {
+                                    geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                                }
+                                if (!addresses.isNullOrEmpty()) {
+                                    locationAddress = addresses[0].getAddressLine(0)
+                                } else {
+                                    locationAddress = "Location point selected"
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                locationAddress = "Could not resolve address"
+                            }
+                            locationCoords = Pair(location.latitude, location.longitude)
+                        } else {
+                            Toast.makeText(context, "Location not found, please turn on GPS", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    Toast.makeText(context, "Error getting location: ${e.message}", Toast.LENGTH_SHORT).show()
+                } finally {
+                    isLoadingLocation = false
+                }
+            }
+        } else {
+            isLoadingLocation = false
+            Toast.makeText(context, "Location permissions required", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // Simplistic validation
-    val isFormValid = title.isNotBlank() && description.isNotBlank() && department.isNotBlank() && locationAddress != null
+    val isFormValid = title.isNotBlank() && description.isNotBlank() && departmentId.isNotBlank() && locationAddress != null
 
     Column(
         modifier = Modifier
@@ -186,7 +260,7 @@ fun ReportIssueScreen(
             ) {
                 OutlinedTextField(
                     readOnly = true,
-                    value = department,
+                    value = departments.find { it.first == departmentId }?.second ?: "",
                     onValueChange = {},
                     placeholder = { Text("Select department") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -204,11 +278,11 @@ fun ReportIssueScreen(
                     onDismissRequest = { expanded = false },
                     modifier = Modifier.background(Color.White)
                 ) {
-                    departments.forEach { selectionOption ->
+                    departments.forEach { (id, name) ->
                         DropdownMenuItem(
-                            text = { Text(selectionOption) },
+                            text = { Text(name) },
                             onClick = {
-                                department = selectionOption
+                                departmentId = id
                                 expanded = false
                             }
                         )
@@ -292,13 +366,13 @@ fun ReportIssueScreen(
                         }
                     }
                     IconButton(onClick = {
-                        coroutineScope.launch {
-                            isLoadingLocation = true
-                            delay(1000) // Mocking delay
-                            locationAddress = "Model Town, Jalandhar"
-                            locationCoords = Pair(31.3260, 75.5762)
-                            isLoadingLocation = false
-                        }
+                        isLoadingLocation = true
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
                     }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color(0xFF0D9488))
                     }
@@ -306,13 +380,13 @@ fun ReportIssueScreen(
             } else {
                 Button(
                     onClick = {
-                        coroutineScope.launch {
-                            isLoadingLocation = true
-                            delay(1000) // Mocking delay
-                            locationAddress = "Model Town, Jalandhar"
-                            locationCoords = Pair(31.3260, 75.5762)
-                            isLoadingLocation = false
-                        }
+                        isLoadingLocation = true
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(8.dp),
@@ -342,7 +416,12 @@ fun ReportIssueScreen(
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
-                    onClick = { Toast.makeText(context, "Camera intent would go here", Toast.LENGTH_SHORT).show() },
+                    onClick = {
+                        val file = File(context.cacheDir, "camera_${System.currentTimeMillis()}.jpg")
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+                        cameraUri = uri
+                        cameraLauncher.launch(uri)
+                    },
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF0D9488)),
@@ -408,7 +487,7 @@ fun ReportIssueScreen(
                         val newIssue = IssueModel(
                             title = title.trim(),
                             description = description.trim(),
-                            department = department.trim(),
+                            department = departments.find { it.first == departmentId }?.first ?: "pwd",
                             locationAddress = locationAddress ?: "",
                             locationLat = locationCoords?.first ?: 0.0,
                             locationLng = locationCoords?.second ?: 0.0,

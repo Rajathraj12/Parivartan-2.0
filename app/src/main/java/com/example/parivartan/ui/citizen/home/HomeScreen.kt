@@ -32,7 +32,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +45,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 
 private val Teal500 = Color(0xFF14B8A6)
 private val Teal600 = Color(0xFF0D9488)
@@ -104,7 +110,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val email = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email
-    val showMock = email == "android@gmail.com" || email == "test@gmail.com"
+    val showMock = email == "android@gmail.com"
 
     // Mock data for now (no auth/backend as requested)
     val urgentIssues = remember(showMock) {
@@ -127,25 +133,41 @@ fun HomeScreen(
         )
     }
 
+    var isVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        isVisible = true
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .background(Slate50)
     ) {
         item {
-            Header(
-                userFirstName = userFirstName,
-                onOpenProfile = onOpenProfile,
-            )
+            AnimatedVisibility(
+                visible = isVisible,
+                enter = fadeIn(tween(300)) + expandVertically(tween(300))
+            ) {
+                Header(
+                    userFirstName = userFirstName,
+                    onOpenProfile = onOpenProfile,
+                )
+            }
         }
 
         item {
-            QuickActionsRow(
-                onReport = onReportIssue,
-                onMap = onOpenMap,
-                onMyIssues = { onOpenIssueDetail("1") },
-                onCommunity = onOpenCommunity,
-            )
+            AnimatedVisibility(
+                visible = isVisible,
+                enter = fadeIn(tween(500)) + slideInVertically(tween(500), initialOffsetY = { 50 })
+            ) {
+                QuickActionsRow(
+                    onReport = onReportIssue,
+                    onMap = onOpenMap,
+                    onMyIssues = { onOpenIssueDetail("1") },
+                    onCommunity = onOpenCommunity,
+                )
+            }
         }
 
         item {
@@ -157,14 +179,14 @@ fun HomeScreen(
             )
 
             LazyRow(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().animateContentSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp)
             ) {
                 items(urgentIssues, key = { it.id }) { issue ->
                     UrgentIssueCard(
                         issue = issue,
                         onClick = { onOpenIssueDetail(issue.id) },
-                        modifier = Modifier.padding(end = 12.dp)
+                        modifier = Modifier.padding(end = 12.dp).animateItem()
                     )
                 }
             }
@@ -186,6 +208,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 12.dp)
+                    .animateItem()
             )
         }
 
@@ -345,58 +368,62 @@ private fun UrgentIssueCard(
     Card(
         modifier = modifier
             .width(230.dp)
+            .height(150.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(statusColor(issue.status))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+        Column(modifier = Modifier.padding(16.dp).fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = statusText(issue.status),
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(statusColor(issue.status))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = statusText(issue.status),
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Outlined.KeyboardArrowUp,
+                            contentDescription = "Upvotes",
+                            tint = Slate500,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "${issue.upvotes}",
+                            color = Slate500,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Outlined.KeyboardArrowUp,
-                        contentDescription = "Upvotes",
-                        tint = Slate500,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "${issue.upvotes}",
-                        color = Slate500,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = issue.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Slate800,
+                    maxLines = 2,
+                    minLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = issue.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Slate800,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Outlined.LocationOn,

@@ -17,6 +17,11 @@ import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -26,6 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import com.example.parivartan.data.IssueRepository
+import androidx.compose.runtime.setValue
 
 @Composable
 fun StaffDashboardScreen(
@@ -36,19 +44,37 @@ fun StaffDashboardScreen(
     onNavigateToIssueDetail: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val stats = mapOf(
-        "total" to 42,
-        "pending" to 15,
-        "inProgress" to 10,
-        "resolved" to 17
-    )
+    val issueRepository = remember { IssueRepository() }
+    val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+    val userName = user?.displayName?.takeIf { it.isNotBlank() } ?: "Staff Member"
+    val userStaffId = "EMP-${user?.uid?.take(4)?.uppercase() ?: "0000"}"
+    val departmentName = ""
 
-    // Dummy data for recent issues
-    val recentIssues = listOf(
-        Issue("101", "Pothole on Main St", "high", "pending", "Main St, City Center"),
-        Issue("102", "Street light not working", "medium", "in-progress", "Oak Avenue"),
-        Issue("103", "Garbage collection missed", "low", "resolved", "Pine Street")
-    )
+    var stats by remember { mutableStateOf(mapOf(
+        "total" to 0,
+        "pending" to 0,
+        "inProgress" to 0,
+        "resolved" to 0
+    )) }
+
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        // Find tasks assigned to this actual user by name (or use a fallback mapping if needed, trying actual name first)
+        // If the user's name is "staff1", we check for either "staff1", or "Staff Member 1" if assignments still use the mock combo
+        val staffNameToSearch = if (userName.contains("staff1", ignoreCase = true)) "Staff Member 1" else userName
+        val res = issueRepository.getIssuesAssignedToStaff(staffNameToSearch)
+        if (res.isSuccess) {
+            val dbIssues = res.getOrDefault(emptyList())
+            stats = mapOf(
+                "total" to dbIssues.size,
+                "pending" to dbIssues.count { it.status == "pending" || it.status == "assigned" },
+                "inProgress" to dbIssues.count { it.status == "in-progress" || it.status == "in_progress" },
+                "resolved" to dbIssues.count { it.status == "resolved" }
+            )
+        }
+        isLoading = false
+    }
 
     Column(
         modifier = modifier
@@ -85,13 +111,15 @@ fun StaffDashboardScreen(
                 Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
                     Text("Welcome back,", color = Color(0xCCFFFFFF), fontSize = 14.sp)
                     Text(
-                        text = "John Doe",
+                        text = userName,
                         color = Color.White,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 2.dp)
                     )
-                    Text("Public Works Dept", color = Color(0xCCFFFFFF), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    if (departmentName.isNotEmpty()) {
+                        Text(departmentName, color = Color(0xCCFFFFFF), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
 
                     Box(
                         modifier = Modifier
@@ -99,7 +127,7 @@ fun StaffDashboardScreen(
                             .background(Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text("ID: PWD-1042", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text("ID: $userStaffId", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
@@ -159,50 +187,6 @@ fun StaffDashboardScreen(
                     value = stats["resolved"].toString(),
                     color = Color(0xFF10B981)
                 )
-            }
-        }
-
-        // Recent Activity
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Recent Activity", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
-                Text(
-                    "See All",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF0D9488),
-                    modifier = Modifier.clickable { onNavigateIssues() }
-                )
-            }
-
-            // Dummy check for empty logic explicitly to avoid compiler warnings
-            val hasRecentIssues = recentIssues.isNotEmpty()
-            if (hasRecentIssues) {
-                recentIssues.forEach { issue ->
-                    IssueCard(issue = issue, onClick = { onNavigateToIssueDetail(issue.id) })
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-            } else {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.FolderOpen,
-                        contentDescription = "Empty",
-                        tint = Color(0xFFD1D5DB),
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Text("No recent issues", color = Color(0xFF9CA3AF), fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
-                }
             }
         }
 

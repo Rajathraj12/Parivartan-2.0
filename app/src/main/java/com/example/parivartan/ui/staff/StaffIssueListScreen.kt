@@ -27,6 +27,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.*
+import kotlinx.coroutines.launch
+import com.example.parivartan.data.IssueRepository
 
 // Reusing the same data structure logically, though typically this would be a shared model
 private data class IssueItem(
@@ -51,7 +53,7 @@ fun StaffIssueListScreen(
     var searchQuery by remember { mutableStateOf("") }
     var statusFilter by remember { mutableStateOf("all") }
     val email = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email
-    val showMock = email == "android@gmail.com" || email == "test@gmail.com"
+    val showMock = email == "android@gmail.com"
 
     val mockIssues = remember(showMock) {
         if (!showMock) emptyList() else listOf(
@@ -62,7 +64,30 @@ fun StaffIssueListScreen(
         )
     }
 
-    val filteredIssues = mockIssues.filter { issue ->
+    var issues by remember { mutableStateOf(mockIssues) }
+    val issueRepository = remember { IssueRepository() }
+
+    LaunchedEffect(Unit) {
+        val res = issueRepository.getIssuesAssignedToStaff("Staff Member 1") // Mock mapped from John Doe staff1
+        if (res.isSuccess) {
+            val dbIssues = res.getOrDefault(emptyList()).map {
+                IssueItem(
+                    id = it.id,
+                    title = it.title,
+                    description = it.description,
+                    priority = it.priority.ifEmpty { "low" },
+                    status = it.status.ifEmpty { "pending" },
+                    locationAddress = it.locationAddress.ifEmpty { "Unknown location" },
+                    upvotes = it.upvotes,
+                    photoCount = it.photos.size,
+                    updatedAt = it.updatedAt
+                )
+            }
+            issues = mockIssues + dbIssues
+        }
+    }
+
+    val filteredIssues = issues.filter { issue ->
         val matchesSearch = issue.title.contains(searchQuery, ignoreCase = true) ||
                 issue.description.contains(searchQuery, ignoreCase = true) ||
                 issue.id.contains(searchQuery, ignoreCase = true)
@@ -71,20 +96,20 @@ fun StaffIssueListScreen(
     }
 
     val statusOptions = listOf(
-        Triple("all", "All", mockIssues.size),
-        Triple("pending", "Pending", mockIssues.count { it.status == "pending" }),
-        Triple("in-progress", "In Progress", mockIssues.count { it.status == "in-progress" }),
-        Triple("resolved", "Resolved", mockIssues.count { it.status == "resolved" })
+        Triple("all", "All", issues.size),
+        Triple("pending", "Pending", issues.count { it.status == "pending" || it.status == "assigned" }),
+        Triple("in-progress", "In Progress", issues.count { it.status == "in_progress" || it.status == "in-progress" }),
+        Triple("resolved", "Resolved", issues.count { it.status == "resolved" })
     )
 
     val getStatusColor = { status: String ->
-        when (status) {
-            "pending" -> Color(0xFFEAB308)
+        when (status.lowercase()) {
+            "pending", "assigned" -> Color(0xFFEAB308)
             "acknowledged" -> Color(0xFF3B82F6)
-            "in-progress" -> Color(0xFF8B5CF6)
+            "in-progress", "in_progress" -> Color(0xFF8B5CF6)
             "resolved" -> Color(0xFF10B981)
             "cannot-resolve" -> Color(0xFFEF4444)
-            else -> Color(0xFF6B7280)
+            else -> Color(0xFF64748B)
         }
     }
 
@@ -272,10 +297,10 @@ fun StaffIssueListScreen(
                                             .padding(horizontal = 10.dp, vertical = 4.dp)
                                     ) {
                                         Text(
-                                            issue.status.replace("-", " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
+                                            issue.status.replace("-", " ").replace("_", " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
                                             fontSize = 11.sp,
-                                            color = Color.White,
-                                            fontWeight = FontWeight.SemiBold
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
                                         )
                                     }
                                     Text(formatRelativeDate(issue.updatedAt), fontSize = 12.sp, color = Color(0xFF9CA3AF))
@@ -324,4 +349,3 @@ fun StaffIssueListScreen(
         }
     }
 }
-

@@ -14,6 +14,7 @@ data class IssueModel(
     val reporterId: String = "",
     val reporterName: String = "",
     val reporterContact: String = "",
+    val assignedTo: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val photos: List<String> = emptyList(),
@@ -27,4 +28,3 @@ data class CommentModel(
     val text: String = "",
     val timestamp: Long = System.currentTimeMillis()
 )
-

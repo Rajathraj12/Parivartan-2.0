@@ -30,6 +30,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.drawBehind
 import coil.compose.rememberAsyncImagePainter
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,16 +51,60 @@ fun IssueDetailScreen(
     var rating by remember { mutableStateOf(0) }
     var ratingComment by remember { mutableStateOf("") }
 
+    val issueRepository = remember { com.example.parivartan.data.IssueRepository() }
+    var issueModel by remember { mutableStateOf<com.example.parivartan.data.IssueModel?>(null) }
+
+    LaunchedEffect(issueId) {
+        val res = issueRepository.getIssue(issueId)
+        if (res.isSuccess) {
+            issueModel = res.getOrNull()
+        } else {
+            // Check if it's a map mock issue
+            val mapMock = com.example.parivartan.ui.citizen.map.allMockMapIssues.find { it.id == issueId }
+            if (mapMock != null) {
+                issueModel = com.example.parivartan.data.IssueModel(
+                    id = mapMock.id,
+                    title = mapMock.title,
+                    description = mapMock.description,
+                    department = mapMock.category,
+                    status = mapMock.status,
+                    locationAddress = mapMock.location,
+                    locationLat = mapMock.latitude,
+                    locationLng = mapMock.longitude,
+                    upvotes = mapMock.upvotes,
+                    reporterName = "Mock User"
+                )
+            }
+        }
+    }
+
     val statusColor = Color(0xFFF59E0B) // Amber for pending/under_review
     val statusBg = Color(0xFFFEF3C7)
+
+    val displayTitle = issueModel?.title ?: "Pothole on Main Road"
+    val displayDepartment = issueModel?.department?.uppercase() ?: "INFRASTRUCTURE"
+    val issueStatus = issueModel?.status ?: "under_review"
+    val displayStatus = when(issueStatus.lowercase()) {
+        "pending" -> "Pending"
+        "under_review", "under review" -> "Under Review"
+        "assigned" -> "Assigned"
+        "in_progress", "in progress" -> "In Progress"
+        "resolved" -> "Resolved"
+        "rejected" -> "Rejected"
+        "closed" -> "Closed"
+        else -> issueStatus.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }
+    }
+    val issueDate = issueModel?.createdAt?.let {
+        java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()).format(java.util.Date(it))
+    } ?: "Oct 12, 2023"
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("INFRASTRUCTURE", fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
-                        Text("Pothole on Main Road", fontSize = 18.sp, color = Color(0xFF334155), fontWeight = FontWeight.SemiBold)
+                        Text(displayDepartment, fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
+                        Text(displayTitle, fontSize = 18.sp, color = Color(0xFF334155), fontWeight = FontWeight.SemiBold)
                     }
                 },
                 navigationIcon = {
@@ -92,10 +142,10 @@ fun IssueDetailScreen(
                             .background(statusBg, RoundedCornerShape(12.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text("Under Review", color = statusColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text(displayStatus, color = statusColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
                     Spacer(Modifier.width(8.dp))
-                    Text("Reported on Oct 12, 2023", color = Color(0xFF64748B), fontSize = 12.sp)
+                    Text("Reported on $issueDate", color = Color(0xFF64748B), fontSize = 12.sp)
                 }
 
                 Row(
@@ -115,7 +165,7 @@ fun IssueDetailScreen(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text("$upvotes", color = if (isUpvoted) Color.White else Color(0xFF334155), fontSize = 14.sp)
+                    Text("${issueModel?.upvotes?.plus(if(isUpvoted) 1 else 0) ?: upvotes}", color = if (isUpvoted) Color.White else Color(0xFF334155), fontSize = 14.sp)
                 }
             }
 
@@ -129,7 +179,7 @@ fun IssueDetailScreen(
             // Content
             Box(modifier = Modifier.weight(1f)) {
                 when (activeTab) {
-                    "details" -> DetailsTab(onRateClick = { showRatingModal = true })
+                    "details" -> DetailsTab(issueModel, onRateClick = { showRatingModal = true })
                     "comments" -> CommentsTab(commentText, { commentText = it }, { commentText = "" })
                     "updates" -> UpdatesTab()
                 }
@@ -205,7 +255,7 @@ fun TabItem(text: String, isSelected: Boolean, modifier: Modifier, onClick: () -
 }
 
 @Composable
-fun DetailsTab(onRateClick: () -> Unit) {
+fun DetailsTab(issueModel: com.example.parivartan.data.IssueModel?, onRateClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -216,7 +266,7 @@ fun DetailsTab(onRateClick: () -> Unit) {
         Text("Description", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
         Spacer(Modifier.height(8.dp))
         Text(
-            "There is a huge pothole on the main road which is causing trouble for daily commuters and risks accidents.",
+            issueModel?.description ?: "There is a huge pothole on the main road which is causing trouble for daily commuters and risks accidents.",
             fontSize = 14.sp,
             color = Color(0xFF334155),
             lineHeight = 20.sp
@@ -226,25 +276,59 @@ fun DetailsTab(onRateClick: () -> Unit) {
         // Images Placeholder
         Text("Images", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
         Spacer(Modifier.height(8.dp))
-        Box(modifier = Modifier.fillMaxWidth().height(150.dp).background(Color(0xFFE2E8F0), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-            Text("Image Gallery", color = Color(0xFF64748B))
+        if (issueModel?.photos?.isNotEmpty() == true) {
+            LazyRow(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+                items(issueModel.photos) { photoUrl ->
+                    Image(
+                        painter = rememberAsyncImagePainter(photoUrl),
+                        contentDescription = null,
+                        modifier = Modifier.size(150.dp).clip(RoundedCornerShape(8.dp)).padding(end = 8.dp),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+        } else {
+            Box(modifier = Modifier.fillMaxWidth().height(150.dp).background(Color(0xFFE2E8F0), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                Text("No Images Provided", color = Color(0xFF94A3B8))
+            }
         }
         Spacer(Modifier.height(24.dp))
 
         // Location Placeholder
         Text("Location", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
         Spacer(Modifier.height(8.dp))
-        Box(
-            modifier = Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(8.dp)).padding(12.dp)
-        ) {
-            Column {
-                Text("Main Road, Model Town, Jalandhar", fontSize = 14.sp, color = Color(0xFF334155))
-                Spacer(Modifier.height(8.dp))
-                Box(modifier = Modifier.fillMaxWidth().height(150.dp).background(Color(0xFFE2E8F0), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                    Text("Map View Placeholder", color = Color(0xFF64748B))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.LocationOn, contentDescription = "Location", tint = Color(0xFF64748B))
+            Spacer(Modifier.width(8.dp))
+            Text(issueModel?.locationAddress ?: "Main Road, Sector 4, City Center", fontSize = 14.sp, color = Color(0xFF334155))
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        if (issueModel != null && issueModel.locationLat != 0.0 && issueModel.locationLng != 0.0) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clip(RoundedCornerShape(8.dp))
+            ) {
+                val location = LatLng(issueModel.locationLat, issueModel.locationLng)
+                val cameraPositionState = rememberCameraPositionState {
+                    position = CameraPosition.fromLatLngZoom(location, 14f)
+                }
+                GoogleMap(
+                    modifier = Modifier.fillMaxSize(),
+                    cameraPositionState = cameraPositionState,
+                    uiSettings = com.google.maps.android.compose.MapUiSettings(zoomControlsEnabled = false, scrollGesturesEnabled = false)
+                ) {
+                    Marker(
+                        state = MarkerState(position = location),
+                        title = issueModel.title
+                    )
                 }
             }
         }
+
         Spacer(Modifier.height(24.dp))
 
         // Reported By
@@ -254,11 +338,16 @@ fun DetailsTab(onRateClick: () -> Unit) {
             modifier = Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(8.dp)).padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(modifier = Modifier.size(40.dp).background(Color(0xFFCBD5E1), CircleShape))
+            Box(modifier = Modifier.size(40.dp).background(Color(0xFF0D9488), CircleShape), contentAlignment = Alignment.Center) {
+                Text((issueModel?.reporterName?.firstOrNull()?.uppercaseChar()?.toString() ?: "R"), color = Color.White, fontWeight = FontWeight.Bold)
+            }
             Spacer(Modifier.width(12.dp))
             Column {
-                Text("John Doe", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF334155))
-                Text("on Oct 12, 2023", fontSize = 12.sp, color = Color(0xFF64748B))
+                Text(issueModel?.reporterName ?: "John Doe", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF334155))
+                val issueDateStr = issueModel?.createdAt?.let {
+                    java.text.SimpleDateFormat("'on 'MMM dd, yyyy", java.util.Locale.getDefault()).format(java.util.Date(it))
+                } ?: "on Oct 12, 2023"
+                Text(issueDateStr, fontSize = 12.sp, color = Color(0xFF64748B))
             }
         }
         Spacer(Modifier.height(24.dp))

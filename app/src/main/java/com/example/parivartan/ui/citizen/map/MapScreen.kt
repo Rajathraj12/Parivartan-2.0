@@ -31,6 +31,7 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.launch
+import com.example.parivartan.data.IssueRepository
 
 data class MapIssue(
     val id: String,
@@ -48,7 +49,10 @@ data class MapIssue(
 val allMockMapIssues = listOf(
     MapIssue("1", "Broken Streetlight", "Streetlight on Main St is out.", "pending", "Main St", "Infrastructure", "2026-03-29", 15, 31.3300, 75.5844),
     MapIssue("2", "Pothole", "Large pothole on 5th Ave.", "in-progress", "5th Ave", "Roads", "2026-03-28", 22, 31.3320, 75.5810),
-    MapIssue("3", "Trash Overflow", "Garbage bin overflowing.", "resolved", "Central Park", "Sanitation", "2026-03-25", 5, 31.3280, 75.5860)
+    MapIssue("3", "Trash Overflow", "Garbage bin overflowing.", "resolved", "Central Park", "Sanitation", "2026-03-25", 5, 31.3280, 75.5860),
+    MapIssue("4", "Water Leakage", "Pipe burst near the school.", "pending", "Model Town", "Water & Sanitation", "2026-04-09", 34, 31.3260, 75.5760),
+    MapIssue("5", "Fallen Tree", "Tree blocking the road after storm.", "in-progress", "Defence Colony", "Disaster Management", "2026-04-10", 45, 31.3150, 75.5900),
+    MapIssue("6", "Stray Dogs", "Pack of aggressive stray dogs.", "pending", "Urban Estate", "Health & Welfare", "2026-04-08", 12, 31.3200, 75.5800)
 )
 
 data class MapFilters(
@@ -64,13 +68,34 @@ fun MapScreen(
     onNavigateToIssueDetail: (String) -> Unit
 ) {
     val email = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email
-    val showMock = email == "android@gmail.com" || email == "test@gmail.com"
-    val mockMapIssues = remember(showMock) { if (showMock) allMockMapIssues else emptyList() }
 
-    var issues by remember(showMock) { mutableStateOf(mockMapIssues) }
+    var issues by remember { mutableStateOf(allMockMapIssues) }
     var filters by remember { mutableStateOf(MapFilters()) }
     var selectedIssue by remember { mutableStateOf<MapIssue?>(null) }
     var showFiltersModal by remember { mutableStateOf(false) }
+
+    val issueRepository = remember { IssueRepository() }
+
+    LaunchedEffect(Unit) {
+        val res = issueRepository.getAllIssues()
+        if (res.isSuccess) {
+            val dbIssues = res.getOrDefault(emptyList()).map {
+                MapIssue(
+                    id = it.id,
+                    title = it.title,
+                    description = it.description,
+                    status = it.status,
+                    location = it.locationAddress,
+                    category = it.department,
+                    date = "Today",
+                    upvotes = it.upvotes,
+                    latitude = it.locationLat,
+                    longitude = it.locationLng
+                )
+            }
+            issues = allMockMapIssues + dbIssues
+        }
+    }
 
     val filteredIssues = remember(issues, filters) {
         issues.filter { issue ->

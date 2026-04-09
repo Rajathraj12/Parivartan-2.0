@@ -44,7 +44,10 @@ data class Issue(
 val allMockIssues = listOf(
     Issue("1", "Broken Streetlight", "Streetlight on Main St is out.", "pending", "Main St", "infrastructure", "2026-03-29", 15, "Alice"),
     Issue("2", "Pothole", "Large pothole on 5th Ave.", "in-progress", "5th Ave", "roads", "2026-03-28", 22, "Bob"),
-    Issue("3", "Trash Overflow", "Garbage bin overflowing.", "resolved", "Central Park", "sanitation", "2026-03-25", 5, "Charlie")
+    Issue("3", "Trash Overflow", "Garbage bin overflowing.", "resolved", "Central Park", "sanitation", "2026-03-25", 5, "Charlie"),
+    Issue("4", "Water Leakage", "Pipe burst near the school.", "pending", "Model Town", "sanitation", "2026-04-09", 34, "David"),
+    Issue("5", "Fallen Tree", "Tree blocking the road after storm.", "in-progress", "Defence Colony", "parks", "2026-04-10", 45, "Eve"),
+    Issue("6", "Stray Dogs", "Pack of aggressive stray dogs.", "pending", "Urban Estate", "infrastructure", "2026-04-08", 12, "Frank")
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,7 +61,7 @@ fun CommunityScreen(
     var refreshing by remember { mutableStateOf(false) }
 
     val email = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email
-    val showMock = email == "android@gmail.com" || email == "test@gmail.com"
+    val showMock = email == "android@gmail.com"
     val mockIssues = remember(showMock) { if (showMock) allMockIssues else emptyList() }
 
     val filters = listOf(

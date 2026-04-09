@@ -10,7 +10,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Assignment
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Logout
+import androidx.compose.material.icons.outlined.PendingActions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +27,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.parivartan.data.IssueRepository
+import kotlinx.coroutines.launch
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+
 private val Teal500 = Color(0xFF14B8A6)
 private val Teal600 = Color(0xFF0D9488)
 private val Slate50 = Color(0xFFF8FAFC)
@@ -57,15 +65,42 @@ fun DepartmentDashboardScreen(
     departmentId: String? = null,
     onLogout: () -> Unit = {}
 ) {
-    var grievances by remember {
-        mutableStateOf(
-            listOf(
-                Grievance("2Ncm1GVQa6cHIH9Xr6aL", "Test", "App test", "14 Nov 2025, 11:38 am", "Rajath", "rajath@gmail.com", "Pending", "Medium", "Thapar University Area, Patiala"),
-                Grievance("3ABcdEFGhIJKlMnOPQrs", "Broken Pipe", "Pipe leaking water", "15 Nov 2025, 09:12 am", "Aman", "aman@example.com", "In Progress", "High", "Model Town, Patiala"),
-                Grievance("4xyZ0123LMnOPQRstuVW", "Pothole", "Huge pothole causing traffic issues", "16 Nov 2025, 02:45 pm", "Kiran", "kiran@example.com", "Resolved", "Low", "Civil Lines, Patiala")
-            )
-        )
+    val issueRepository = remember { IssueRepository() }
+    var grievances by remember { mutableStateOf<List<Grievance>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val mappedId = departmentId ?: "pwd"
+    LaunchedEffect(mappedId) {
+        coroutineScope.launch {
+            val result = issueRepository.getIssuesByDepartment(mappedId)
+            if (result.isSuccess) {
+                val data = result.getOrNull() ?: emptyList()
+                grievances = data.map { issue ->
+                    Grievance(
+                        id = issue.id,
+                        title = issue.title,
+                        description = issue.description,
+                        date = java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(issue.createdAt)),
+                        citizenName = issue.reporterName.ifEmpty { "Citizen" },
+                        citizenPhone = issue.reporterContact.ifEmpty { "N/A" },
+                        status = issue.status.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }.replace("_", " "),
+                        priority = issue.priority.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() },
+                        location = issue.locationAddress.ifEmpty { "Unknown location" },
+                        assignedTo = issue.assignedTo
+                    )
+                }
+            } else {
+                // Keep empty or fallback to mock
+                grievances = listOf(
+                    Grievance("2Ncm1GVQa6cHIH9Xr6aL", "Test", "App test", "14 Nov 2025, 11:38 am", "Rajath", "rajath@gmail.com", "Pending", "Medium", "Thapar University Area, Patiala"),
+                    Grievance("3ABcdEFGhIJKlMnOPQrs", "Broken Pipe", "Pipe leaking water", "15 Nov 2025, 09:12 am", "Aman", "aman@example.com", "In Progress", "High", "Model Town, Patiala"),
+                    Grievance("4xyZ0123LMnOPQRstuVW", "Pothole", "Huge pothole causing traffic issues", "16 Nov 2025, 02:45 pm", "Kiran", "kiran@example.com", "Resolved", "Low", "Civil Lines, Patiala")
+                )
+            }
+        }
     }
+
     var selectedGrievance by remember { mutableStateOf<Grievance?>(null) }
     // Filter & Sort States
     var statusFilter by remember { mutableStateOf("All Status") }
@@ -84,6 +119,12 @@ fun DepartmentDashboardScreen(
         }
         list
     }
+
+    var isVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        isVisible = true
+    }
+
     val departmentDisplayName = remember(departmentId) {
         val mapping = mapOf(
             "pwd" to "Public Works Department (PWD)",
@@ -137,62 +178,89 @@ fun DepartmentDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item { Spacer(modifier = Modifier.height(16.dp)) }
+
+            // Overview Stats
+            item {
+                AnimatedVisibility(
+                    visible = isVisible,
+                    enter = fadeIn(tween(300)) + slideInVertically(tween(300), initialOffsetY = { 50 })
+                ) {
+                    val totalCount = grievances.size
+                    val pendingCount = grievances.count { it.status.equals("Pending", ignoreCase = true) }
+                    val resolvedCount = grievances.count { it.status.equals("Resolved", ignoreCase = true) }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        StatCard("Total", "$totalCount", Icons.Outlined.Assignment, Teal600, Modifier.weight(1f))
+                        StatCard("Pending", "$pendingCount", Icons.Outlined.PendingActions, StatusPending, Modifier.weight(1f))
+                        StatCard("Resolved", "$resolvedCount", Icons.Outlined.CheckCircle, StatusResolved, Modifier.weight(1f))
+                    }
+                }
+            }
+
             // Filter & Sort Card
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                AnimatedVisibility(
+                    visible = isVisible,
+                    enter = fadeIn(tween(400)) + slideInVertically(tween(400), initialOffsetY = { 50 })
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.Start
-                        ) {
-                            Text("Filter & Sort Grievances", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Slate800)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Badge(text = "Showing ${filteredGrievances.size} of ${grievances.size} grievances", color = Slate500, backgroundColor = Slate100)
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DropdownSelector(
-                                label = "Status",
-                                options = listOf("All Status", "Pending", "In Progress", "Resolved"),
-                                selected = statusFilter,
-                                onSelect = { statusFilter = it },
-                                modifier = Modifier.weight(1f)
-                            )
-                            DropdownSelector(
-                                label = "Priority",
-                                options = listOf("All Priorities", "High", "Medium", "Low"),
-                                selected = priorityFilter,
-                                onSelect = { priorityFilter = it },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DropdownSelector(
-                                label = "Order",
-                                options = listOf("Newest First", "Oldest First"),
-                                selected = sortOrder,
-                                onSelect = { sortOrder = it },
-                                modifier = Modifier.weight(1f)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(" ", fontSize = 12.sp) // Spacer
-                                Button(
-                                    onClick = {
-                                        statusFilter = "All Status"
-                                        priorityFilter = "All Priorities"
-                                        sortOrder = "Newest First"
-                                    },
-                                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)), // Better red
-                                    shape = RoundedCornerShape(24.dp),
-                                    contentPadding = PaddingValues(0.dp)
-                                ) {
-                                    Text("Clear All Filters", fontSize = 12.sp)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text("Filter & Sort Grievances", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Slate800)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Badge(text = "Showing ${filteredGrievances.size} of ${grievances.size} grievances", color = Slate500, backgroundColor = Slate100)
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                DropdownSelector(
+                                    label = "Status",
+                                    options = listOf("All Status", "Pending", "In Progress", "Resolved"),
+                                    selected = statusFilter,
+                                    onSelect = { statusFilter = it },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                DropdownSelector(
+                                    label = "Priority",
+                                    options = listOf("All Priorities", "High", "Medium", "Low"),
+                                    selected = priorityFilter,
+                                    onSelect = { priorityFilter = it },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                DropdownSelector(
+                                    label = "Order",
+                                    options = listOf("Newest First", "Oldest First"),
+                                    selected = sortOrder,
+                                    onSelect = { sortOrder = it },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(" ", fontSize = 12.sp) // Spacer
+                                    Button(
+                                        onClick = {
+                                            statusFilter = "All Status"
+                                            priorityFilter = "All Priorities"
+                                            sortOrder = "Newest First"
+                                        },
+                                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                                        shape = RoundedCornerShape(24.dp),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        Text("Clear All Filters", fontSize = 12.sp)
+                                    }
                                 }
                             }
                         }
@@ -200,20 +268,31 @@ fun DepartmentDashboardScreen(
                 }
             }
             // Grievance List
-            items(filteredGrievances) { grievance ->
+            items(filteredGrievances, key = { it.id }) { grievance ->
                 GrievanceCard(
                     grievance = grievance,
                     onUpdateStatus = { newStatus -> 
+                        val formattedStatus = newStatus.replace(" ", "_").lowercase()
+                        coroutineScope.launch {
+                            issueRepository.updateIssueStatus(grievance.id, formattedStatus)
+                        }
                         grievances = grievances.map {
                             if(it.id == grievance.id) it.copy(status = newStatus) else it    
                         }
                     },
                     onAssignStaff = { staff ->
+                        coroutineScope.launch {
+                            val res = issueRepository.assignIssueToStaff(grievance.id, staff)
+                            if (res.isSuccess) {
+                                android.widget.Toast.makeText(context, "Assigned to staff successfully", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
                         grievances = grievances.map {
-                            if(it.id == grievance.id) it.copy(assignedTo = staff) else it    
+                            if(it.id == grievance.id) it.copy(assignedTo = staff, status = "Assigned") else it
                         }
                     },
-                    onViewDetails = { selectedGrievance = grievance }
+                    onViewDetails = { selectedGrievance = grievance },
+                    modifier = Modifier.animateItem()
                 )
             }
             item { Spacer(modifier = Modifier.height(16.dp)) }
@@ -224,6 +303,12 @@ fun DepartmentDashboardScreen(
             grievance = grievance,
             onDismiss = { selectedGrievance = null },
             onUpdate = { newStatus, newPriority ->
+                val formattedStatus = newStatus.replace(" ", "_").lowercase()
+                val formattedPriority = newPriority.lowercase()
+                coroutineScope.launch {
+                    issueRepository.updateIssueStatus(grievance.id, formattedStatus)
+                    issueRepository.updateIssuePriority(grievance.id, formattedPriority)
+                }
                 grievances = grievances.map {
                     if(it.id == grievance.id) it.copy(status = newStatus, priority = newPriority) else it
                 }
@@ -268,7 +353,8 @@ private fun GrievanceCard(
     grievance: Grievance,
     onUpdateStatus: (String) -> Unit,
     onAssignStaff: (String) -> Unit,
-    onViewDetails: () -> Unit
+    onViewDetails: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val priorityColor = when(grievance.priority) {
         "High" -> PriorityHigh
@@ -277,7 +363,7 @@ private fun GrievanceCard(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onViewDetails() },
+        modifier = modifier.fillMaxWidth().clickable { onViewDetails() },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(12.dp)
@@ -462,6 +548,44 @@ private fun Badge(text: String, color: Color, backgroundColor: Color) {
         )
     }
 }
+
+@Composable
+private fun StatCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.height(100.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = color,
+                modifier = Modifier.size(24.dp)
+            )
+            Column {
+                Text(
+                    text = value,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Slate800
+                )
+                Text(
+                    text = label,
+                    fontSize = 12.sp,
+                    color = Slate500,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GrievanceDetailDialog(

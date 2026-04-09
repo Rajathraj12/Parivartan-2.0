@@ -27,12 +27,14 @@ fun StaffSettingsScreen(
     onLogoutClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Mock user data
-    val userName = "John Doe"
-    val userEmail = "john.pwd@example.com"
-    val userStaffId = "EMP-1024"
-    val userDepartment = "Public Works Dept"
-    var contactNumber by remember { mutableStateOf("+91 98765 43210") }
+    val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+
+    // User data
+    val userName = user?.displayName?.takeIf { it.isNotBlank() } ?: "Staff Member"
+    val userEmail = user?.email ?: "No email provided"
+    val userStaffId = "EMP-${user?.uid?.take(4)?.uppercase() ?: "0000"}"
+    val userDepartment = ""
+    var contactNumber by remember { mutableStateOf("") }
 
     // Mock settings state
     var newAssignment by remember { mutableStateOf(true) }
@@ -138,25 +140,27 @@ fun StaffSettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Business, contentDescription = null, tint = Color(0xFF6B7280), modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Department", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF374151))
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = userDepartment,
-                        onValueChange = {},
-                        enabled = false,
-                        modifier = Modifier.fillMaxWidth(),
-                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledContainerColor = Color(0xFFF9FAFB),
-                            disabledTextColor = Color(0xFF6B7280),
-                            disabledBorderColor = Color(0xFFD1D5DB)
+                    if (userDepartment.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.Business, contentDescription = null, tint = Color(0xFF6B7280), modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Department", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF374151))
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = userDepartment,
+                            onValueChange = {},
+                            enabled = false,
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledContainerColor = Color(0xFFF9FAFB),
+                                disabledTextColor = Color(0xFF6B7280),
+                                disabledBorderColor = Color(0xFFD1D5DB)
+                            )
                         )
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Call, contentDescription = null, tint = Color(0xFF6B7280), modifier = Modifier.size(16.dp))
@@ -353,4 +357,3 @@ fun NotificationSettingRow(
         )
     }
 }
-

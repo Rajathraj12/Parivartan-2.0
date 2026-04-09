@@ -49,4 +49,72 @@ class IssueRepository {
             Result.failure(e)
         }
     }
+
+    suspend fun updateIssueStatus(id: String, newStatus: String): Result<Unit> {
+        return try {
+            firestore.collection("issues").document(id).update("status", newStatus, "updatedAt", System.currentTimeMillis()).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateIssuePriority(id: String, newPriority: String): Result<Unit> {
+        return try {
+            firestore.collection("issues").document(id).update("priority", newPriority, "updatedAt", System.currentTimeMillis()).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getIssuesByDepartment(departmentId: String): Result<List<IssueModel>> {
+        return try {
+            val snapshot = firestore.collection("issues")
+                .whereEqualTo("department", departmentId)
+                .get()
+                .await()
+            val issues = snapshot.documents.mapNotNull { it.toObject(IssueModel::class.java) }
+            Result.success(issues)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getIssuesAssignedToStaff(staffName: String): Result<List<IssueModel>> {
+        return try {
+            val snapshot = firestore.collection("issues")
+                .whereEqualTo("assignedTo", staffName)
+                .get()
+                .await()
+            val issues = snapshot.documents.mapNotNull { it.toObject(IssueModel::class.java) }
+            Result.success(issues)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getAllIssues(): Result<List<IssueModel>> {
+        return try {
+            val snapshot = firestore.collection("issues").get().await()
+            val issues = snapshot.documents.mapNotNull { it.toObject(IssueModel::class.java) }
+            Result.success(issues)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun assignIssueToStaff(id: String, staffName: String): Result<Unit> {
+        return try {
+            val updateData = mapOf(
+                "assignedTo" to staffName,
+                "status" to "assigned",
+                "updatedAt" to System.currentTimeMillis()
+            )
+            firestore.collection("issues").document(id).update(updateData).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

@@ -300,7 +300,7 @@ fun DepartmentLoginScreen(
                         isLoading = true
                         coroutineScope.launch {
                             delay(800) // fake load
-                            onLoginDemoClick("department")
+                            onLoginDemoClick("department:${selectedDepartment}")
                         }
                     },
                     enabled = !isLoading && email.isNotBlank() && password.isNotBlank() && selectedDepartment.isNotBlank() && captchaAnswer.equals(captchaText, ignoreCase = true),

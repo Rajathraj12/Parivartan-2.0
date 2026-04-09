@@ -142,8 +142,7 @@ fun ParivartanApp(authRepository: AuthRepository) {
                             popUpTo(0) { inclusive = true }
                             launchSingleTop = true
                         }
-                    } else if (role.startsWith("department")) {
-                        // Extract department ID if present
+                    } else if (role.lowercase().startsWith("department")) {
                         val deptId = role.substringAfter(":", "pwd") // Default to pwd
                         navController.navigate("department_dashboard/$deptId") {
                             popUpTo(0) { inclusive = true }
