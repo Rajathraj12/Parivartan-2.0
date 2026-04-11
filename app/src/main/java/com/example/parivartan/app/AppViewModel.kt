@@ -11,10 +11,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+import kotlinx.coroutines.tasks.await
+
 sealed interface InitState {
     data object Initializing : InitState
     data object Unauthenticated : InitState
-    data class Authenticated(val displayName: String?) : InitState
+    data class Authenticated(val displayName: String?, val role: String = "citizen") : InitState
 }
 
 class AppViewModel(
@@ -29,7 +31,35 @@ class AppViewModel(
             when (authState) {
                 AuthState.Loading -> InitState.Initializing
                 AuthState.Unauthenticated -> InitState.Unauthenticated
-                is AuthState.Authenticated -> InitState.Authenticated(authState.displayName)
+                is AuthState.Authenticated -> {
+                    var roleToEmit = "citizen"
+                    val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                    if (user != null) {
+                        try {
+                            var role = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                                .collection("users")
+                                .document(user.uid)
+                                .get()
+                                .await()
+                                .getString("role") ?: "citizen"
+
+                            // To match navigation logic, if role is a department name without the prefix, add it
+                            val nonDepartmentRoles = listOf("citizen", "staff", "admin")
+                            if (!nonDepartmentRoles.contains(role) && !role.startsWith("department:")) {
+                                role = "department:$role"
+                            }
+
+                            roleToEmit = role
+                            currentRole = role
+                        } catch (e: Exception) {
+                            // Default to currentRole or citizen
+                            roleToEmit = currentRole
+                        }
+                    } else {
+                        roleToEmit = currentRole
+                    }
+                    InitState.Authenticated(authState.displayName, roleToEmit)
+                }
             }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, InitState.Initializing)
@@ -53,7 +83,7 @@ class AppViewModel(
     fun signInWithEmail(email: String, password: String, role: String, onError: (String) -> Unit) {
         viewModelScope.launch {
             currentRole = role
-            val result = authRepository.signInWithEmail(email, password)
+            val result = authRepository.signInWithEmailAndRole(email, password, role)
             if (result.isFailure) {
                 onError(result.exceptionOrNull()?.message ?: "Login failed")
             }

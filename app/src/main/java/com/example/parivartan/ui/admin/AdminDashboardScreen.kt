@@ -1,231 +1,490 @@
 package com.example.parivartan.ui.admin
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Logout
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 private val Teal600 = Color(0xFF0D9488)
-private val Slate50 = Color(0xFFF8FAFC)
 private val Slate500 = Color(0xFF64748B)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminDashboardScreen(
-    onNavigateGlobalAnalytics: (() -> Unit)? = null,
-    onNavigateDepartmentManagement: (() -> Unit)? = null
+    modifier: Modifier = Modifier
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var stats by remember { mutableStateOf(mapOf(
+        "total" to 0,
+        "pending" to 0,
+        "inProgress" to 0,
+        "resolved" to 0
+    )) }
 
-    Scaffold(
-        containerColor = Slate50,
-        topBar = {
-            Column {
-                TopAppBar(
-                    title = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Admin Dashboard", color = Color.White, fontWeight = FontWeight.Bold)
-                            Text(
-                                "Welcome, admin! Manage all departments and grievances from here.",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(end = 16.dp)
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF10B981)),
-                    actions = {
-                        IconButton(onClick = { /* TODO: logout hook */ }) {
-                            Icon(Icons.Outlined.Logout, contentDescription = "Logout", tint = Color.White)
-                        }
-                    }
-                )
-                // Segmented navbar with 4 items
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.White)
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .border(1.dp, Color(0xFF16A34A), RoundedCornerShape(999.dp))
-                        .padding(3.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    val tabs = listOf("Overview", "Departments", "All Grievances", "Analytics")
-                    tabs.forEachIndexed { index, title ->
-                        val isSelected = selectedTab == index
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .background(
-                                    color = if (isSelected) Color(0xFF16A34A) else Color.Transparent,
-                                    shape = RoundedCornerShape(999.dp)
-                                )
-                                .clickable { selectedTab = index }
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = title,
-                                color = if (isSelected) Color.White else Color(0xFF0F172A),
-                                fontSize = 13.sp,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        floatingActionButton = {
-            if (selectedTab == 1) {
-                FloatingActionButton(onClick = { /* TODO: open Add Department dialog */ }, containerColor = Teal600) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Department", tint = Color.White)
-                }
-            }
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            when (selectedTab) {
-                0 -> OverviewTab()
-                1 -> DepartmentManagementTab()
-                2 -> GrievancesTab()
-                3 -> AnalyticsTab()
-            }
+    var isVisible by remember { mutableStateOf(false) }
+    var currentTab by remember { mutableStateOf("Overview") }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val coroutineScope = rememberCoroutineScope()
+
+    val userName = "System Administrator"
+
+    val db = FirebaseFirestore.getInstance()
+
+    LaunchedEffect(Unit) {
+        isVisible = true
+        try {
+            val result = db.collection("issues").get().await()
+            val total = result.size()
+            val pending = result.count { it.getString("status")?.uppercase() == "PENDING" }
+            val inProgress = result.count { it.getString("status")?.uppercase() == "IN-PROGRESS" || it.getString("status")?.uppercase() == "IN PROGRESS" }
+            val resolved = result.count { it.getString("status")?.uppercase() == "RESOLVED" }
+
+            stats = mapOf(
+                "total" to total,
+                "pending" to pending,
+                "inProgress" to inProgress,
+                "resolved" to resolved
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
-}
 
-@Composable
-fun OverviewTab() {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard("Total Grievances", "14", Teal600, Modifier.weight(1f))
-            StatCard("Resolved", "0", Color(0xFF22C55E), Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard("In Progress", "7", Color(0xFF2563EB), Modifier.weight(1f))
-            StatCard("Pending", "5", Color(0xFFF97316), Modifier.weight(1f))
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Department Performance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                PerformanceRow("Civil Surgeon’s Office", 100f)
-                PerformanceRow("Punjab Police", 100f)
-                PerformanceRow("Water Supply & Sanitation", 100f)
-            }
-        }
-    }
-}
+    val scrollState = rememberScrollState()
 
-@Composable
-fun StatCard(title: String, value: String, accentColor: Color, modifier: Modifier = Modifier) {
-    Card(
+    ModalNavigationDrawer(
+        drawerState = drawerState,
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.bodySmall, color = Slate500)
-            Spacer(Modifier.height(6.dp))
-            Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111827))
-            Spacer(Modifier.height(8.dp))
-            Box(
-                modifier = Modifier
-                    .height(4.dp)
-                    .fillMaxWidth()
-                    .background(Color(0xFFE2E8F0), RoundedCornerShape(999.dp))
-            ) {
+        drawerContent = {
+            ModalDrawerSheet(modifier = Modifier.width(280.dp), drawerContainerColor = Color.White) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.6f)
-                        .height(4.dp)
-                        .background(accentColor, RoundedCornerShape(999.dp))
+                        .fillMaxWidth()
+                        .background(Brush.linearGradient(listOf(Color(0xFF0D9488), Color(0xFF0F766E))))
+                        .padding(24.dp)
+                ) {
+                    Column {
+                        Icon(
+                            imageVector = Icons.Default.AdminPanelSettings,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier
+                                .size(64.dp)
+                                .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                                .padding(12.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = userName,
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Admin Access",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
+                    label = { Text("Overview") },
+                    selected = currentTab == "Overview",
+                    onClick = {
+                        coroutineScope.launch { drawerState.close() }
+                        currentTab = "Overview"
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
                 )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.AutoMirrored.Outlined.List, contentDescription = null) },
+                    label = { Text("Manage Departments") },
+                    selected = currentTab == "Departments",
+                    onClick = {
+                        coroutineScope.launch { drawerState.close() }
+                        currentTab = "Departments"
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Report, contentDescription = null) },
+                    label = { Text("Grievances") },
+                    selected = currentTab == "Grievances",
+                    onClick = {
+                        coroutineScope.launch { drawerState.close() }
+                        currentTab = "Grievances"
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Analytics, contentDescription = null) },
+                    label = { Text("Global Analytics") },
+                    selected = currentTab == "Analytics",
+                    onClick = {
+                        coroutineScope.launch { drawerState.close() }
+                        currentTab = "Analytics"
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.AutoMirrored.Outlined.ExitToApp, contentDescription = "Logout", tint = Color(0xFFEF4444)) },
+                    label = { Text("Logout", color = Color(0xFFEF4444)) },
+                    selected = false,
+                    onClick = {
+                        coroutineScope.launch { drawerState.close() }
+                        FirebaseAuth.getInstance().signOut()
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            when(currentTab) {
+                                "Overview" -> "Admin Dashboard"
+                                "Departments" -> "Manage Departments"
+                                "Grievances" -> "All Grievances"
+                                "Analytics" -> "Global Analytics"
+                                else -> "Admin Dashboard"
+                            },
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E293B)
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color(0xFF1E293B))
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                )
+            },
+            containerColor = Color(0xFFF8FAFC)
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                when(currentTab) {
+                    "Overview" -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(scrollState)
+                        ) {
+                            // Header Profile Card
+                            AnimatedVisibility(
+                                visible = isVisible,
+                                enter = fadeIn(animationSpec = tween(500)) + slideInVertically(animationSpec = tween(500), initialOffsetY = { -it / 2 })
+                            ) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    shape = RoundedCornerShape(20.dp),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Brush.linearGradient(listOf(Color(0xFF0D9488), Color(0xFF0F766E))))
+                                            .padding(24.dp)
+                                    ) {
+                                        Column {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        "Welcome Back,",
+                                                        color = Color.White.copy(alpha = 0.8f),
+                                                        fontSize = 14.sp
+                                                    )
+                                                    Text(
+                                                        userName,
+                                                        color = Color.White,
+                                                        fontSize = 24.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(top = 4.dp)
+                                                    )
+                                                }
+                                                Icon(
+                                                    imageVector = Icons.Default.AdminPanelSettings,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier
+                                                        .size(48.dp)
+                                                        .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                                                        .padding(10.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(24.dp))
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                                                    .padding(16.dp),
+                                                horizontalArrangement = Arrangement.SpaceAround
+                                            ) {
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text(stats["total"].toString(), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                                    Text("All Issues", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                                                }
+                                                VerticalDivider(modifier = Modifier.height(30.dp).width(1.dp).background(Color.White.copy(alpha = 0.3f)))
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text(stats["pending"].toString(), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                                    Text("Pending", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Grid Statistics
+                            AnimatedVisibility(
+                                visible = isVisible,
+                                enter = fadeIn(animationSpec = tween(500)) + slideInVertically(animationSpec = tween(500), initialOffsetY = { it / 2 })
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        AdminStatCard(
+                                            modifier = Modifier.weight(1f),
+                                            icon = Icons.Default.Inventory,
+                                            label = "Total Issues",
+                                            value = stats["total"].toString(),
+                                            color = Color(0xFF0D9488)
+                                        )
+                                        AdminStatCard(
+                                            modifier = Modifier.weight(1f),
+                                            icon = Icons.Default.AccessTime,
+                                            label = "Pending",
+                                            value = stats["pending"].toString(),
+                                            color = Color(0xFFF59E0B)
+                                        )
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        AdminStatCard(
+                                            modifier = Modifier.weight(1f),
+                                            icon = Icons.Default.RocketLaunch,
+                                            label = "In Progress",
+                                            value = stats["inProgress"].toString(),
+                                            color = Color(0xFF3B82F6)
+                                        )
+                                        AdminStatCard(
+                                            modifier = Modifier.weight(1f),
+                                            icon = Icons.Default.CheckCircle,
+                                            label = "Resolved",
+                                            value = stats["resolved"].toString(),
+                                            color = Color(0xFF10B981)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Global Overview
+                            AnimatedVisibility(
+                                visible = isVisible,
+                                enter = fadeIn(animationSpec = tween(700))
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text("System Overview", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B), modifier = Modifier.padding(bottom = 16.dp))
+
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            AdminPerformanceRow("Civil Surgeon’s Office", 100f)
+                                            AdminPerformanceRow("Punjab Police", 85f)
+                                            AdminPerformanceRow("Water Supply & Sanitation", 72f)
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(80.dp))
+                                }
+                            }
+                        }
+                    }
+                    "Departments" -> {
+                        Box(modifier = Modifier.padding(16.dp)) {
+                            DepartmentManagementTab()
+                        }
+                    }
+                    "Grievances" -> {
+                        Box(modifier = Modifier.padding(16.dp)) {
+                            GrievancesTab()
+                        }
+                    }
+                    "Analytics" -> {
+                        Box(modifier = Modifier.padding(16.dp).verticalScroll(scrollState)) {
+                            AnalyticsTab()
+                        }
+                        Spacer(modifier = Modifier.height(40.dp))
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun PerformanceRow(department: String, percentage: Float) {
+fun AdminStatCard(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val targetValue = value.toIntOrNull() ?: 0
+    val animatedValue by animateIntAsState(
+        targetValue = targetValue,
+        animationSpec = tween(durationMillis = 1000)
+    )
+    val displayValue = if (value.toIntOrNull() != null) animatedValue.toString() else value
+
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Color(0xFFF1F5F9), RoundedCornerShape(16.dp))
+                .background(Color.White)
+                .padding(16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 4.dp)
+                    .background(color)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White)
+                        .padding(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(color.copy(alpha = 0.1f), CircleShape)
+                            .padding(8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = color,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(displayValue, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111827))
+                    Text(label, fontSize = 12.sp, color = Color(0xFF6B7280), modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminPerformanceRow(department: String, percentage: Float) {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(department, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("${percentage.toInt()}% Resolved", style = MaterialTheme.typography.bodySmall, color = Slate500)
+            Text(department, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow. Ellipsis)
+            Text("${percentage.toInt()}% Resolved", style = MaterialTheme.typography.bodySmall, color = Color(0xFF64748B))
         }
         LinearProgressIndicator(
-            progress = percentage / 100f,
+            progress = { percentage / 100f },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(8.dp)
                 .padding(top = 4.dp),
-            color = Teal600,
+            color = Color(0xFF0D9488),
             trackColor = Color(0xFFE2E8F0)
         )
     }
 }
 
+
 @Composable
 fun DepartmentManagementTab() {
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Department Management",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF14532D)
-            )
-            OutlinedButton(
-                onClick = { /* TODO: open Add Department dialog */ },
-                shape = RoundedCornerShape(999.dp),
-                border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp, brush = SolidColor(Color(0xFF16A34A)))
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF16A34A))
-                Spacer(Modifier.width(6.dp))
-                Text("Add Department", color = Color(0xFF16A34A))
+
+        var departments by remember { mutableStateOf(sampleDepartmentCards().sortedByDescending { it.total }) }
+        var departmentToEdit by remember { mutableStateOf<DepartmentUiModel?>(null) }
+        val db = FirebaseFirestore.getInstance()
+
+        LaunchedEffect(Unit) {
+            try {
+                val result = db.collection("issues").get().await()
+                val updatedDepts = departments.map { dept ->
+                    val deptGrievances = result.filter { it.getString("department") == dept.name }
+                    dept.copy(
+                        total = deptGrievances.size,
+                        resolved = deptGrievances.count { it.getString("status")?.uppercase() == "RESOLVED" },
+                        pending = deptGrievances.count { it.getString("status")?.uppercase() == "PENDING" }
+                    )
+                }.sortedByDescending { it.total }
+                departments = updatedDepts
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        val departments = remember { sampleDepartmentCards() }
 
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 260.dp),
@@ -234,10 +493,66 @@ fun DepartmentManagementTab() {
             modifier = Modifier.fillMaxSize()
         ) {
             items(departments) { dept ->
-                DepartmentCard(dept)
+                DepartmentCard(
+                    dept = dept,
+                    onEdit = { departmentToEdit = it },
+                    onDelete = {
+                        departments = departments.filter { it.id != dept.id }
+                    }
+                )
             }
         }
+
+        departmentToEdit?.let { dept ->
+            EditDepartmentDialog(
+                department = dept,
+                onDismiss = { departmentToEdit = null },
+                onSave = { updatedDept ->
+                    departments = departments.map { if (it.id == updatedDept.id) updatedDept else it }.sortedByDescending { it.total }
+                    departmentToEdit = null
+                }
+            )
+        }
     }
+}
+
+@Composable
+fun EditDepartmentDialog(
+    department: DepartmentUiModel,
+    onDismiss: () -> Unit,
+    onSave: (DepartmentUiModel) -> Unit
+) {
+    var name by remember { mutableStateOf(department.name) }
+    var head by remember { mutableStateOf(department.head) }
+    var officer by remember { mutableStateOf(department.officer) }
+    var contact by remember { mutableStateOf(department.contact) }
+    var email by remember { mutableStateOf(department.email) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Department") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = head, onValueChange = { head = it }, label = { Text("Head") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = officer, onValueChange = { officer = it }, label = { Text("Assigned Officer") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = contact, onValueChange = { contact = it }, label = { Text("Contact") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                onSave(department.copy(name = name, head = head, officer = officer, contact = contact, email = email))
+            }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 data class DepartmentUiModel(
@@ -253,7 +568,11 @@ data class DepartmentUiModel(
 )
 
 @Composable
-private fun DepartmentCard(dept: DepartmentUiModel) {
+private fun DepartmentCard(
+    dept: DepartmentUiModel,
+    onEdit: (DepartmentUiModel) -> Unit,
+    onDelete: (DepartmentUiModel) -> Unit
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -277,7 +596,7 @@ private fun DepartmentCard(dept: DepartmentUiModel) {
                 )
                 Spacer(Modifier.width(8.dp))
                 TextButton(
-                    onClick = { /* TODO edit department */ },
+                    onClick = { onEdit(dept) },
                     colors = ButtonDefaults.textButtonColors(containerColor = Color(0xFF16A34A), contentColor = Color.White),
                     shape = RoundedCornerShape(6.dp)
                 ) {
@@ -287,7 +606,7 @@ private fun DepartmentCard(dept: DepartmentUiModel) {
                 }
                 Spacer(Modifier.width(6.dp))
                 TextButton(
-                    onClick = { /* TODO delete department */ },
+                    onClick = { onDelete(dept) },
                     colors = ButtonDefaults.textButtonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White),
                     shape = RoundedCornerShape(6.dp)
                 ) {
@@ -360,8 +679,8 @@ private fun sampleDepartmentCards(): List<DepartmentUiModel> = listOf(
         id = "civil-surgeon",
         name = "Civil Surgeon's Office",
         head = "Civil Surgeon",
-        officer = "civil-surgeon",
-        contact = "+91-XXXXXXXXXX",
+        officer = "Dr. Sharma",
+        contact = "+91-9876543210",
         email = "civil-surgeon@parivartan.gov.in",
         total = 0,
         resolved = 0,
@@ -370,26 +689,124 @@ private fun sampleDepartmentCards(): List<DepartmentUiModel> = listOf(
     DepartmentUiModel(
         id = "forest",
         name = "Forest Department",
-        head = "Forest Department",
-        officer = "forest",
-        contact = "+91-XXXXXXXXXX",
+        head = "Chief Conservator",
+        officer = "Mr. Singh",
+        contact = "+91-9876543211",
         email = "forest@parivartan.gov.in",
-        total = 1,
+        total = 0,
         resolved = 0,
-        pending = 1
+        pending = 0
+    ),
+    DepartmentUiModel(
+        id = "traffic-police",
+        name = "Traffic Police",
+        head = "DCP Traffic",
+        officer = "Mr. Yadav",
+        contact = "+91-9876543212",
+        email = "traffic@parivartan.gov.in",
+        total = 0,
+        resolved = 0,
+        pending = 0
     ),
     DepartmentUiModel(
         id = "water-sanitation",
         name = "Water Supply & Sanitation",
-        head = "Water & Sanitation",
-        officer = "water-sanitation",
-        contact = "+91-XXXXXXXXXX",
+        head = "Chief Engineer",
+        officer = "Mr. Gupta",
+        contact = "+91-9876543213",
         email = "watersanitation@parivartan.gov.in",
-        total = 2,
+        total = 0,
         resolved = 0,
-        pending = 2
+        pending = 0
+    ),
+    DepartmentUiModel(
+        id = "school-education",
+        name = "School Education",
+        head = "District Education Officer",
+        officer = "Mrs. Kaur",
+        contact = "+91-9876543214",
+        email = "education@parivartan.gov.in",
+        total = 0,
+        resolved = 0,
+        pending = 0
+    ),
+    DepartmentUiModel(
+        id = "roadways",
+        name = "Punjab Roadways / PRTC",
+        head = "General Manager",
+        officer = "Mr. Singh",
+        contact = "+91-9876543215",
+        email = "roadways@parivartan.gov.in",
+        total = 0,
+        resolved = 0,
+        pending = 0
+    ),
+    DepartmentUiModel(
+        id = "punjab-police",
+        name = "Punjab Police",
+        head = "SSP",
+        officer = "Mr. Kumar",
+        contact = "+91-9876543216",
+        email = "police@parivartan.gov.in",
+        total = 0,
+        resolved = 0,
+        pending = 0
+    ),
+    DepartmentUiModel(
+        id = "municipal",
+        name = "Municipal Corporation",
+        head = "Commissioner",
+        officer = "Mr. Verma",
+        contact = "+91-9876543217",
+        email = "mc@parivartan.gov.in",
+        total = 0,
+        resolved = 0,
+        pending = 0
+    ),
+    DepartmentUiModel(
+        id = "food-civil",
+        name = "Food & Civil Supplies",
+        head = "District Controller",
+        officer = "Mr. Singh",
+        contact = "+91-9876543218",
+        email = "food@parivartan.gov.in",
+        total = 0,
+        resolved = 0,
+        pending = 0
+    ),
+    DepartmentUiModel(
+        id = "revenue",
+        name = "Revenue Department",
+        head = "Deputy Commissioner",
+        officer = "Mrs. Sharma",
+        contact = "+91-9876543219",
+        email = "revenue@parivartan.gov.in",
+        total = 0,
+        resolved = 0,
+        pending = 0
+    ),
+    DepartmentUiModel(
+        id = "social-security",
+        name = "Social Security & Women & Child",
+        head = "District Officer",
+        officer = "Mrs. Verma",
+        contact = "+91-9876543220",
+        email = "social@parivartan.gov.in",
+        total = 0,
+        resolved = 0,
+        pending = 0
+    ),
+    DepartmentUiModel(
+        id = "pwd",
+        name = "Public Works Department (PWD)",
+        head = "Superintending Engineer",
+        officer = "Mr. Singh",
+        contact = "+91-9876543221",
+        email = "pwd@parivartan.gov.in",
+        total = 0,
+        resolved = 0,
+        pending = 0
     )
-    // ...add other departments similarly or plug into real data source later
 )
 
 // ---------- All Grievances TAB ----------
@@ -405,63 +822,62 @@ fun GrievancesTab() {
         )
         Spacer(Modifier.height(12.dp))
 
-        Card(
-            modifier = Modifier.fillMaxSize(),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(2.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                // Header row similar to web table
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TableHeaderCell("ID", Modifier.weight(1.2f))
-                    TableHeaderCell("Title", Modifier.weight(2.2f))
-                    TableHeaderCell("Department", Modifier.weight(2.2f))
-                    TableHeaderCell("Status", Modifier.weight(1.2f))
-                    TableHeaderCell("Priority", Modifier.weight(1.2f))
-                    TableHeaderCell("Citizen", Modifier.weight(1.4f))
-                    TableHeaderCell("Date", Modifier.weight(1.4f))
-                    TableHeaderCell("Actions", Modifier.weight(1.4f), textAlign = TextAlign.End)
-                }
-                Divider(color = Color(0xFFE2E8F0))
+        var grievances by remember { mutableStateOf<List<AdminGrievanceRow>>(emptyList()) }
+        var isLoading by remember { mutableStateOf(true) }
+        var selectedGrievance by remember { mutableStateOf<AdminGrievanceRow?>(null) }
+        val db = FirebaseFirestore.getInstance()
 
-                val grievances = remember { sampleAdminGrievances() }
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = 4.dp)
-                ) {
-                    items(grievances.size) { index ->
-                        val g = grievances[index]
-                        GrievanceRow(g)
-                        if (index != grievances.lastIndex) {
-                            Divider(color = Color(0xFFF1F5F9))
-                        }
-                    }
+        LaunchedEffect(Unit) {
+            try {
+                val result = db.collection("issues").get().await()
+                val list = result.map { doc ->
+                    val dateLong = doc.getLong("createdAt") ?: 0L
+                    val dateFormatted = if (dateLong > 0) java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault()).format(java.util.Date(dateLong)) else ""
+                    AdminGrievanceRow(
+                        id = doc.id,
+                        title = doc.getString("title") ?: "No Title",
+                        description = doc.getString("description") ?: "",
+                        location = doc.getString("location") ?: "",
+                        department = doc.getString("department") ?: "Unknown",
+                        status = doc.getString("status") ?: "PENDING",
+                        priority = doc.getString("priority") ?: "MEDIUM",
+                        citizen = doc.getString("reporterName") ?: "Citizen",
+                        date = dateFormatted
+                    )
                 }
+                grievances = list
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isLoading = false
             }
         }
-    }
-}
 
-@Composable
-private fun TableHeaderCell(text: String, modifier: Modifier = Modifier, textAlign: TextAlign = TextAlign.Start) {
-    Text(
-        text = text,
-        modifier = modifier,
-        style = MaterialTheme.typography.bodySmall,
-        fontWeight = FontWeight.SemiBold,
-        color = Slate500,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        textAlign = textAlign
-    )
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Teal600)
+            }
+        } else if (grievances.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No grievances found.", color = Slate500)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(grievances.size) { index ->
+                    val g = grievances[index]
+                    AdminGrievanceCard(g, onViewDetails = { selectedGrievance = g })
+                }
+                item { Spacer(modifier = Modifier.height(80.dp)) }
+            }
+        }
+
+        selectedGrievance?.let { g ->
+            AdminGrievanceDetailDialog(g, onDismiss = { selectedGrievance = null })
+        }
+    }
 }
 
 // Simple row model for admin grievances list
@@ -469,6 +885,8 @@ private fun TableHeaderCell(text: String, modifier: Modifier = Modifier, textAli
 data class AdminGrievanceRow(
     val id: String,
     val title: String,
+    val description: String,
+    val location: String,
     val department: String,
     val status: String,
     val priority: String,
@@ -477,47 +895,116 @@ data class AdminGrievanceRow(
 )
 
 @Composable
-private fun GrievanceRow(row: AdminGrievanceRow) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        TableBodyText(row.id, Modifier.weight(1.2f))
-        TableBodyText(row.title, Modifier.weight(2.2f))
-        TableBodyText(row.department, Modifier.weight(2.2f))
-        StatusChip(row.status, Modifier.weight(1.2f))
-        PriorityChip(row.priority, Modifier.weight(1.2f))
-        TableBodyText(row.citizen, Modifier.weight(1.4f))
-        TableBodyText(row.date, Modifier.weight(1.4f))
-        Row(
-            modifier = Modifier.weight(1.4f),
-            horizontalArrangement = Arrangement.End
-        ) {
-            Text(
-                text = "View",
-                color = Teal600,
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier
-                    .border(1.dp, Teal600, RoundedCornerShape(999.dp))
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            )
+private fun AdminGrievanceDetailDialog(
+    grievance: AdminGrievanceRow,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Issue Details", fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(top = 8.dp)) {
+                Text("ID: ${grievance.id}", fontSize = 12.sp, color = Slate500)
+                Spacer(Modifier.height(8.dp))
+                Text("Title: ${grievance.title}", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color(0xFF111827))
+                Spacer(Modifier.height(8.dp))
+                Text("Date: ${grievance.date}", fontSize = 14.sp, color = Slate500)
+                Spacer(Modifier.height(8.dp))
+                Text("Department: ${grievance.department}", fontSize = 14.sp, color = Color(0xFF111827))
+                Spacer(Modifier.height(8.dp))
+                Text("Status: ${grievance.status.uppercase()}", fontSize = 14.sp, color = Color(0xFF111827))
+                Spacer(Modifier.height(8.dp))
+                Text("Priority: ${grievance.priority.uppercase()}", fontSize = 14.sp, color = Color(0xFF111827))
+                Spacer(Modifier.height(8.dp))
+                Text("Reporter: ${grievance.citizen}", fontSize = 14.sp, color = Color(0xFF111827))
+                Spacer(Modifier.height(16.dp))
+                Text("Description:", fontWeight = FontWeight.Medium, fontSize = 14.sp, color = Slate500)
+                Text(grievance.description.ifEmpty { "N/A" }, fontSize = 14.sp, color = Color(0xFF111827))
+                Spacer(Modifier.height(16.dp))
+                Text("Location:", fontWeight = FontWeight.Medium, fontSize = 14.sp, color = Slate500)
+                Text(grievance.location.ifEmpty { "N/A" }, fontSize = 14.sp, color = Color(0xFF111827))
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = Teal600)) {
+                Text("Close", color = Color.White)
+            }
         }
-    }
+    )
 }
 
 @Composable
-private fun TableBodyText(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        modifier = modifier,
-        style = MaterialTheme.typography.bodySmall,
-        color = Color(0xFF111827),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
-    )
+private fun AdminGrievanceCard(
+    row: AdminGrievanceRow,
+    onViewDetails: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "ID: ${row.id}",
+                    fontSize = 12.sp,
+                    color = Slate500,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = row.date,
+                    fontSize = 12.sp,
+                    color = Slate500
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = row.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF111827)
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = row.department,
+                fontSize = 14.sp,
+                color = Color(0xFF64748B)
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatusChip(row.status)
+                    PriorityChip(row.priority)
+                }
+                Text(
+                    text = "By: ${row.citizen}",
+                    fontSize = 12.sp,
+                    color = Color(0xFF111827),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = onViewDetails,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(999.dp),
+                border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(width = 1.dp, brush = SolidColor(Teal600))
+            ) {
+                Text("View Details", color = Teal600)
+            }
+        }
+    }
 }
 
 @Composable
@@ -576,16 +1063,6 @@ private fun PriorityChip(priority: String, modifier: Modifier = Modifier) {
     }
 }
 
-private fun sampleAdminGrievances(): List<AdminGrievanceRow> = listOf(
-    AdminGrievanceRow("2NCM1GVQ", "Test", "Public Works Department (PWD)", "PENDING", "MEDIUM", "Rajath", "14/11/2025"),
-    AdminGrievanceRow("CH4EQNSW", "Aws test", "Public Works Department (PWD)", "PENDING", "MEDIUM", "Rajath", "14/11/2025"),
-    AdminGrievanceRow("FEBF0S24", "Aws test", "Public Works Department (PWD)", "PENDING", "MEDIUM", "Rajath", "14/11/2025"),
-    AdminGrievanceRow("2WD0ILL3", "Aws issue", "Public Works Department (PWD)", "PENDING", "MEDIUM", "Rajath", "14/11/2025"),
-    AdminGrievanceRow("NVPFEBZ5", "Water problem", "Public Works Department (PWD)", "IN-PROGRESS", "MEDIUM", "Rajath", "14/11/2025"),
-    AdminGrievanceRow("4CDDW0CJ", "Demo", "Public Works Department (PWD)", "IN-PROGRESS", "MEDIUM", "Rajath", "01/11/2025"),
-    AdminGrievanceRow("HLKREKIM", "Final Demo", "Public Works Department (PWD)", "IN-PROGRESS", "MEDIUM", "Aarush", "01/11/2025"),
-    AdminGrievanceRow("T7E2DZP6", "Water issue", "Water Supply & Sanitation", "IN-PROGRESS", "MEDIUM", "Aarush", "01/11/2025")
-)
 
 // ---------- Analytics TAB ----------
 
@@ -597,37 +1074,46 @@ data class PriorityAnalytics(val priority: String, val count: Int, val percentag
 
 @Composable
 fun AnalyticsTab() {
-    // Mock analytics data – later can be wired to Firestore/REST
-    val byDepartment = remember {
-        listOf(
-            DepartmentAnalytics("Civil Surgeon’s Office", 1),
-            DepartmentAnalytics("Forest Department", 1),
-            DepartmentAnalytics("Traffic Police", 1),
-            DepartmentAnalytics("Water Supply & Sanitation", 1),
-            DepartmentAnalytics("School Education", 1),
-            DepartmentAnalytics("Punjab Roadways / PRTC", 1),
-            DepartmentAnalytics("Punjab Police", 2),
-            DepartmentAnalytics("Municipal Corporation", 1),
-            DepartmentAnalytics("Food & Civil Supplies", 1),
-            DepartmentAnalytics("Revenue Department", 1),
-            DepartmentAnalytics("Social Security & Women & Child", 1),
-            DepartmentAnalytics("Public Works Department (PWD)", 9)
-        )
-    }
-    val byStatus = remember {
-        listOf(
-            StatusAnalytics("Pending", 5, 36),
-            StatusAnalytics("In Progress", 7, 50),
-            StatusAnalytics("Resolved", 0, 0),
-            StatusAnalytics("Rejected", 2, 14)
-        )
-    }
-    val byPriority = remember {
-        listOf(
-            PriorityAnalytics("High Priority", 0, 0),
-            PriorityAnalytics("Medium Priority", 14, 100),
-            PriorityAnalytics("Low Priority", 0, 0)
-        )
+    var byDepartment by remember { mutableStateOf<List<DepartmentAnalytics>>(emptyList()) }
+    var byStatus by remember { mutableStateOf<List<StatusAnalytics>>(emptyList()) }
+    var byPriority by remember { mutableStateOf<List<PriorityAnalytics>>(emptyList()) }
+    val db = FirebaseFirestore.getInstance()
+
+    LaunchedEffect(Unit) {
+        try {
+            val result = db.collection("issues").get().await()
+            val total = result.size()
+
+            val deptMap = mutableMapOf<String, Int>()
+            val statusMap = mutableMapOf<String, Int>()
+            val priorityMap = mutableMapOf<String, Int>()
+
+            result.forEach { doc ->
+                val dept = doc.getString("department") ?: "Unknown"
+                val status = doc.getString("status") ?: "PENDING"
+                val priority = doc.getString("priority") ?: "MEDIUM"
+
+                deptMap[dept] = deptMap.getOrDefault(dept, 0) + 1
+                statusMap[status] = statusMap.getOrDefault(status, 0) + 1
+                priorityMap[priority] = priorityMap.getOrDefault(priority, 0) + 1
+            }
+
+            byDepartment = deptMap.map { DepartmentAnalytics(it.key, it.value) }.sortedByDescending { it.count }
+
+            byStatus = listOf("Pending", "In Progress", "Resolved", "Rejected").map { s ->
+                val count = statusMap.entries.firstOrNull { it.key.equals(s, ignoreCase = true) }?.value ?: 0
+                val percentage = if (total > 0) (count * 100) / total else 0
+                StatusAnalytics(s, count, percentage)
+            }
+
+            byPriority = listOf("High", "Medium", "Low").map { p ->
+                val count = priorityMap.entries.firstOrNull { it.key.equals(p, ignoreCase = true) }?.value ?: 0
+                val percentage = if (total > 0) (count * 100) / total else 0
+                PriorityAnalytics("$p Priority", count, percentage)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     Column(

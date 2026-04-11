@@ -1,44 +1,39 @@
-package com.example.parivartan.ui.staff
+package com.example.parivartan.ui.admin
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
-import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.border
-import androidx.compose.foundation.Image
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
 import com.example.parivartan.R
+import androidx.compose.foundation.Image
+import kotlinx.coroutines.launch
 
-private val StaffColor = Color(0xFF11AD9D)
-private val DarkStaffColor = Color(0xFF0D8C7F)
+private val AdminColor = Color(0xFF0D9488) // Teal600
+private val DarkAdminColor = Color(0xFF0F766E) // Teal700
 private val Slate50 = Color(0xFFF8FAFC)
 
 private fun generateCaptcha(): String {
@@ -48,9 +43,8 @@ private fun generateCaptcha(): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StaffLoginScreen(
+fun AdminLoginScreen(
     onLogin: (String, String) -> Unit,
-    onLoginDemoClick: (String) -> Unit,
     isLoading: Boolean = false,
     authError: String? = null,
     modifier: Modifier = Modifier
@@ -66,8 +60,6 @@ fun StaffLoginScreen(
         captchaAnswer = ""
     }
 
-    val coroutineScope = rememberCoroutineScope()
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -82,7 +74,7 @@ fun StaffLoginScreen(
                 .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(StaffColor, DarkStaffColor)
+                        colors = listOf(AdminColor, DarkAdminColor)
                     )
                 )
         ) {
@@ -104,17 +96,17 @@ fun StaffLoginScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Civic Issue Reporter",
+                    text = "System Administration",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Field Staff Login",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color.White.copy(alpha = 0.9f)
-                )
+                        Text(
+                            text = "Admin Login",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
             }
         }
 
@@ -139,21 +131,21 @@ fun StaffLoginScreen(
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Email Address") },
+                    label = { Text("Admin Email") },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Outlined.Email,
                             contentDescription = "Email",
-                            tint = StaffColor
+                            tint = AdminColor
                         )
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = StaffColor,
-                        focusedLabelColor = StaffColor,
-                        cursorColor = StaffColor
+                        focusedBorderColor = AdminColor,
+                        focusedLabelColor = AdminColor,
+                        cursorColor = AdminColor
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -169,7 +161,7 @@ fun StaffLoginScreen(
                         Icon(
                             imageVector = Icons.Outlined.Lock,
                             contentDescription = "Password",
-                            tint = StaffColor
+                            tint = AdminColor
                         )
                     },
                     trailingIcon = {
@@ -185,9 +177,9 @@ fun StaffLoginScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = StaffColor,
-                        focusedLabelColor = StaffColor,
-                        cursorColor = StaffColor
+                        focusedBorderColor = AdminColor,
+                        focusedLabelColor = AdminColor,
+                        cursorColor = AdminColor
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -212,9 +204,9 @@ fun StaffLoginScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = StaffColor,
-                        focusedLabelColor = StaffColor,
-                        cursorColor = StaffColor
+                        focusedBorderColor = AdminColor,
+                        focusedLabelColor = AdminColor,
+                        cursorColor = AdminColor
                     ),
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
@@ -224,9 +216,9 @@ fun StaffLoginScreen(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 3.sp,
-                                color = StaffColor,
+                                color = AdminColor,
                                 modifier = Modifier
-                                    .background(StaffColor.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                                    .background(AdminColor.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                             IconButton(onClick = refreshCaptcha) {
@@ -244,8 +236,8 @@ fun StaffLoginScreen(
                     },
                     enabled = !isLoading && email.isNotBlank() && password.isNotBlank() && captchaAnswer.equals(captchaText, ignoreCase = true),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = StaffColor,
-                        disabledContainerColor = StaffColor.copy(alpha = 0.5f)
+                        containerColor = AdminColor,
+                        disabledContainerColor = AdminColor.copy(alpha = 0.5f)
                     ),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
@@ -260,7 +252,7 @@ fun StaffLoginScreen(
                         )
                     } else {
                         Text(
-                            text = "Login",
+                            text = "Secure Login",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -279,15 +271,16 @@ fun StaffLoginScreen(
                 .padding(vertical = 20.dp)
         ) {
             Text(
-                text = "© 2026 City Government",
+                text = " 2026 Admin Operations",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF6B7280)
             )
             Text(
-                text = "Secure Staff Portal",
+                text = "Secure Portal",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF9CA3AF)
             )
         }
     }
 }
+

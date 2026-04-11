@@ -45,7 +45,7 @@ fun IssueDetailScreen(
 ) {
     var activeTab by remember { mutableStateOf("details") } // 'details', 'comments', 'updates'
     var isUpvoted by remember { mutableStateOf(false) }
-    var upvotes by remember { mutableStateOf(12) }
+    var upvotes by remember { mutableStateOf(0) }
     var commentText by remember { mutableStateOf("") }
     var showRatingModal by remember { mutableStateOf(false) }
     var rating by remember { mutableStateOf(0) }
@@ -53,11 +53,14 @@ fun IssueDetailScreen(
 
     val issueRepository = remember { com.example.parivartan.data.IssueRepository() }
     var issueModel by remember { mutableStateOf<com.example.parivartan.data.IssueModel?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(issueId) {
+        isLoading = true
         val res = issueRepository.getIssue(issueId)
         if (res.isSuccess) {
             issueModel = res.getOrNull()
+            upvotes = issueModel?.upvotes ?: 0
         } else {
             // Check if it's a map mock issue
             val mapMock = com.example.parivartan.ui.citizen.map.allMockMapIssues.find { it.id == issueId }
@@ -74,37 +77,45 @@ fun IssueDetailScreen(
                     upvotes = mapMock.upvotes,
                     reporterName = "Mock User"
                 )
+                upvotes = mapMock.upvotes
+            } else {
+                // Could not load anything
             }
         }
+        isLoading = false
     }
 
     val statusColor = Color(0xFFF59E0B) // Amber for pending/under_review
     val statusBg = Color(0xFFFEF3C7)
 
-    val displayTitle = issueModel?.title ?: "Pothole on Main Road"
-    val displayDepartment = issueModel?.department?.uppercase() ?: "INFRASTRUCTURE"
-    val issueStatus = issueModel?.status ?: "under_review"
+    val displayTitle = issueModel?.title ?: ""
+    val displayDepartment = issueModel?.department?.uppercase() ?: ""
+    val issueStatus = issueModel?.status ?: "pending"
     val displayStatus = when(issueStatus.lowercase()) {
         "pending" -> "Pending"
         "under_review", "under review" -> "Under Review"
         "assigned" -> "Assigned"
         "in_progress", "in progress" -> "In Progress"
         "resolved" -> "Resolved"
-        "rejected" -> "Rejected"
         "closed" -> "Closed"
-        else -> issueStatus.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }
+        "rejected" -> "Rejected"
+        else -> issueStatus.uppercase()
     }
     val issueDate = issueModel?.createdAt?.let {
         java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()).format(java.util.Date(it))
-    } ?: "Oct 12, 2023"
+    } ?: ""
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(displayDepartment, fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
-                        Text(displayTitle, fontSize = 18.sp, color = Color(0xFF334155), fontWeight = FontWeight.SemiBold)
+                    if (!isLoading && issueModel != null) {
+                        Column {
+                            Text(displayDepartment, fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
+                            Text(displayTitle, fontSize = 18.sp, color = Color(0xFF334155), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        }
+                    } else if (isLoading) {
+                        Text("Loading...", fontSize = 18.sp)
                     }
                 },
                 navigationIcon = {
@@ -113,81 +124,92 @@ fun IssueDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* Share */ }) {
-                        Icon(Icons.Default.Share, contentDescription = "Share")
+                    if (!isLoading && issueModel != null) {
+                        IconButton(onClick = { /* Share */ }) {
+                            Icon(Icons.Default.Share, contentDescription = "Share")
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFFF8FAFC))
-                .padding(paddingValues)
-        ) {
-            // Status and Upvote Bar
-            Row(
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Color(0xFF0D9488))
+            }
+        } else if (issueModel == null) {
+            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
+                Text("Issue not found.", color = Color(0xFF64748B))
+            }
+        } else {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White)
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxSize()
+                    .background(Color(0xFFF8FAFC))
+                    .padding(paddingValues)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .background(statusBg, RoundedCornerShape(12.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(displayStatus, color = statusColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text("Reported on $issueDate", color = Color(0xFF64748B), fontSize = 12.sp)
-                }
-
+                // Status and Upvote Bar
                 Row(
                     modifier = Modifier
-                        .background(if (isUpvoted) Color(0xFF0D9488) else Color(0xFFF1F5F9), RoundedCornerShape(16.dp))
-                        .clickable {
-                            isUpvoted = !isUpvoted
-                            if (isUpvoted) upvotes++ else upvotes--
-                        }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .fillMaxWidth()
+                        .background(Color.White)
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.KeyboardArrowUp,
-                        contentDescription = "Upvote",
-                        tint = if (isUpvoted) Color.White else Color(0xFF334155),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text("${issueModel?.upvotes?.plus(if(isUpvoted) 1 else 0) ?: upvotes}", color = if (isUpvoted) Color.White else Color(0xFF334155), fontSize = 14.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .background(statusBg, RoundedCornerShape(12.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(displayStatus, color = statusColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text("Reported on $issueDate", color = Color(0xFF64748B), fontSize = 12.sp)
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .background(if (isUpvoted) Color(0xFF0D9488) else Color(0xFFF1F5F9), RoundedCornerShape(16.dp))
+                            .clickable {
+                                isUpvoted = !isUpvoted
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.KeyboardArrowUp,
+                            contentDescription = "Upvote",
+                            tint = if (isUpvoted) Color.White else Color(0xFF334155),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("${if(isUpvoted) upvotes + 1 else upvotes}", color = if (isUpvoted) Color.White else Color(0xFF334155), fontSize = 14.sp)
+                    }
+                }
+
+                // Tabs
+                Row(modifier = Modifier.fillMaxWidth().background(Color.White)) {
+                    TabItem("Details", activeTab == "details", Modifier.weight(1f)) { activeTab = "details" }
+                    // Only show comments/updates tabs for now as placeholders or when implementing full features
+                    TabItem("Comments", activeTab == "comments", Modifier.weight(1f)) { activeTab = "comments" }
+                    TabItem("Updates", activeTab == "updates", Modifier.weight(1f)) { activeTab = "updates" }
+                }
+
+                // Content
+                Box(modifier = Modifier.weight(1f)) {
+                    when (activeTab) {
+                        "details" -> DetailsTab(issueModel, onRateClick = { showRatingModal = true })
+                        "comments" -> CommentsTab(commentText, { commentText = it }, { commentText = "" })
+                        "updates" -> UpdatesTab()
+                    }
                 }
             }
 
-            // Tabs
-            Row(modifier = Modifier.fillMaxWidth().background(Color.White)) {
-                TabItem("Details", activeTab == "details", Modifier.weight(1f)) { activeTab = "details" }
-                TabItem("Comments (2)", activeTab == "comments", Modifier.weight(1f)) { activeTab = "comments" }
-                TabItem("Updates (1)", activeTab == "updates", Modifier.weight(1f)) { activeTab = "updates" }
-            }
-
-            // Content
-            Box(modifier = Modifier.weight(1f)) {
-                when (activeTab) {
-                    "details" -> DetailsTab(issueModel, onRateClick = { showRatingModal = true })
-                    "comments" -> CommentsTab(commentText, { commentText = it }, { commentText = "" })
-                    "updates" -> UpdatesTab()
-                }
-            }
-        }
-
-        // Rating Modal
-        if (showRatingModal) {
+            // Rating Modal
+            if (showRatingModal) {
             AlertDialog(
                 onDismissRequest = { showRatingModal = false },
                 title = { Text("Rate This Resolution", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
@@ -228,6 +250,7 @@ fun IssueDetailScreen(
                     }
                 }
             )
+            }
         }
     }
 }

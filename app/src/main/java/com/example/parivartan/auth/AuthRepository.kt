@@ -11,6 +11,7 @@ interface AuthRepository {
 
     fun signIn(displayName: String? = null)
     suspend fun signInWithEmail(email: String, password: String): Result<Unit>
+    suspend fun signInWithEmailAndRole(email: String, password: String, expectedRole: String): Result<Unit>
     suspend fun signUpWithEmail(fullName: String, email: String, password: String): Result<Unit>
     suspend fun signInWithGoogleToken(idToken: String): Result<Unit>
     fun signOut()

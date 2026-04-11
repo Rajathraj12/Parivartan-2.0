@@ -43,11 +43,13 @@ import com.example.parivartan.auth.AuthRepository
 import com.example.parivartan.ui.auth.LoginScreen
 import com.example.parivartan.ui.auth.SignupScreen
 import com.example.parivartan.ui.citizen.home.HomeScreen
+import com.example.parivartan.ui.citizen.home.MyIssuesScreen
 import com.example.parivartan.ui.citizen.community.CommunityScreen
 import com.example.parivartan.ui.citizen.profile.ProfileScreen
 import com.example.parivartan.ui.citizen.map.MapScreen
 import com.example.parivartan.ui.citizen.report.ReportIssueScreen
 import com.example.parivartan.ui.intro.IntroScreen
+import com.example.parivartan.ui.admin.AdminLoginScreen
 import com.example.parivartan.ui.staff.StaffLoginScreen
 import com.example.parivartan.ui.staff.StaffIssueDetailScreen
 import com.example.parivartan.ui.staff.StaffIssueListScreen
@@ -102,6 +104,7 @@ fun ParivartanApp(authRepository: AuthRepository) {
                     Route.Intro.route,
                     Route.Signup.route,
                     Route.StaffLogin.route,
+                    Route.AdminLogin.route,
                     Route.DepartmentLogin.route,
                 )
 
@@ -124,10 +127,12 @@ fun ParivartanApp(authRepository: AuthRepository) {
             }
 
             is InitState.Authenticated -> {
+                val authState = initState as InitState.Authenticated
                 val isOnAuthScreen = currentRoute?.startsWith(Route.Login.route) == true || currentRoute in setOf(
                     Route.Splash.route,
                     Route.Intro.route,
                     Route.StaffLogin.route,
+                    Route.AdminLogin.route,
                     Route.DepartmentLogin.route,
                     Route.Signup.route,
                     null
@@ -135,8 +140,7 @@ fun ParivartanApp(authRepository: AuthRepository) {
 
                 // Only forced navigation to Home if we are currently on an auth screen
                 if (isOnAuthScreen) {
-                    val role = appViewModel.currentRole // We need a way to know the logged-in role
-                    // For now, if we don't have a role in the ViewModel, default to "citizen" -> Home
+                    val role = authState.role // Get role directly from the authenticated state
                     if (role == "admin") {
                         navController.navigate(Route.AdminDashboard.route) {
                             popUpTo(0) { inclusive = true }
@@ -274,11 +278,12 @@ fun ParivartanApp(authRepository: AuthRepository) {
             }
         }
     ) { innerPadding ->
-        AppNavHost(
-            navController = navController,
-            initState = initState,
-            userFirstName = (initState as? InitState.Authenticated)?.displayName ?: "Citizen",
-            onLoginDemoClick = { role -> appViewModel.signInDemo(role) },
+    val currentInitState = initState
+    AppNavHost(
+        navController = navController,
+        initState = currentInitState,
+        userFirstName = (currentInitState as? InitState.Authenticated)?.displayName ?: "Citizen",
+        onLoginDemoClick = { role -> appViewModel.signInDemo(role) },
             onLogoutClick = { appViewModel.signOut() },
             onSplashFinished = { isSplashFinished = true },
             modifier = Modifier.padding(innerPadding),
@@ -324,7 +329,9 @@ private fun AppNavHost(
             IntroScreen(
                 onSkip = { navController.navigate("${Route.Login.route}/citizen") },
                 onGetStarted = { role ->
-                    if (role == "staff") {
+                    if (role == "admin") {
+                        navController.navigate(Route.AdminLogin.route)
+                    } else if (role == "staff") {
                         navController.navigate(Route.StaffLogin.route)
                     } else if (role == "department") {
                         navController.navigate(Route.DepartmentLogin.route)
@@ -335,15 +342,75 @@ private fun AppNavHost(
             )
         }
 
+        composable(Route.AdminLogin.route) {
+            var isLoading by rememberSaveable { mutableStateOf(false) }
+            var authError by rememberSaveable { mutableStateOf<String?>(null) }
+
+            AdminLoginScreen(
+                onLogin = { email, password ->
+                    if (email.lowercase().trim() != "admin@gmail.com") {
+                        authError = "You are an unauthorized user."
+                        return@AdminLoginScreen
+                    }
+                    isLoading = true
+                    authError = null
+                    if (appViewModel != null) {
+                        appViewModel.signInWithEmail(email, password, "admin") { error ->
+                            isLoading = false
+                            authError = error
+                        }
+                    } else {
+                        onLoginDemoClick("admin")
+                    }
+                },
+                isLoading = isLoading,
+                authError = authError
+            )
+        }
+
         composable(Route.DepartmentLogin.route) {
+            var isLoading by rememberSaveable { mutableStateOf(false) }
+            var authError by rememberSaveable { mutableStateOf<String?>(null) }
+
             com.example.parivartan.ui.department.DepartmentLoginScreen(
-                onLoginDemoClick = { role -> onLoginDemoClick(role) }
+                onLogin = { email, password, deptId ->
+                    isLoading = true
+                    authError = null
+                    if (appViewModel != null) {
+                        appViewModel.signInWithEmail(email, password, "department:$deptId") { error ->
+                            isLoading = false
+                            authError = error
+                        }
+                    } else {
+                        onLoginDemoClick("department:$deptId")
+                    }
+                },
+                onLoginDemoClick = { role -> onLoginDemoClick(role) },
+                isLoading = isLoading,
+                authError = authError
             )
         }
 
         composable(Route.StaffLogin.route) {
+            var isLoading by rememberSaveable { mutableStateOf(false) }
+            var authError by rememberSaveable { mutableStateOf<String?>(null) }
+
             StaffLoginScreen(
-                onLoginDemoClick = { role -> onLoginDemoClick(role) }
+                onLogin = { email, password ->
+                    isLoading = true
+                    authError = null
+                    if (appViewModel != null) {
+                        appViewModel.signInWithEmail(email, password, "staff") { error ->
+                            isLoading = false
+                            authError = error
+                        }
+                    } else {
+                        onLoginDemoClick("staff")
+                    }
+                },
+                onLoginDemoClick = { role -> onLoginDemoClick(role) },
+                isLoading = isLoading,
+                authError = authError
             )
         }
 
@@ -355,6 +422,10 @@ private fun AppNavHost(
             LoginScreen(
                 onBack = { navController.popBackStack() },
                 onLogin = { email, password ->
+                    if (role == "admin" && email.lowercase().trim() != "admin@gmail.com") {
+                        authError = "You are an unauthorized user."
+                        return@LoginScreen
+                    }
                     isLoading = true
                     authError = null
                     if (appViewModel != null) {
@@ -367,6 +438,10 @@ private fun AppNavHost(
                     }
                 },
                 onGoogleSignIn = { idToken ->
+                    if (role == "admin") {
+                        authError = "Google login not allowed for Admin."
+                        return@LoginScreen
+                    }
                     isLoading = true
                     authError = null
                     if (appViewModel != null) {
@@ -443,10 +518,11 @@ private fun AppNavHost(
             )
         }
 
-        // We can just leave MyComplaints empty or basic for now,
-        // since SimpleScreen was removed.
         composable(Route.MyComplaints.route) {
-            Text("My Complaints", modifier = Modifier.padding(16.dp))
+            MyIssuesScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToIssueDetail = { id -> navController.navigate("${Route.IssueDetail.route}/$id") }
+            )
         }
 
         composable("${Route.IssueDetail.route}/{issueId}") { backStackEntry ->
@@ -458,10 +534,7 @@ private fun AppNavHost(
         }
 
         composable(Route.AdminDashboard.route) {
-            com.example.parivartan.ui.admin.AdminDashboardScreen(
-                onNavigateGlobalAnalytics = { /* TODO */ },
-                onNavigateDepartmentManagement = { /* TODO */ }
-            )
+            com.example.parivartan.ui.admin.AdminDashboardScreen()
         }
 
         composable(Route.DepartmentDashboard.route) { backStackEntry ->
@@ -479,7 +552,8 @@ private fun AppNavHost(
                 onNavigateMap = { navController.navigate(Route.StaffMapView.route) },
                 onNavigateNotifications = { navController.navigate(Route.StaffNotifications.route) },
                 onNavigateSettings = { navController.navigate(Route.StaffSettings.route) },
-                onNavigateToIssueDetail = { id -> navController.navigate("${Route.StaffIssueDetail.route}/$id") }
+                onNavigateToIssueDetail = { id -> navController.navigate("${Route.StaffIssueDetail.route}/$id") },
+                onLogout = onLogoutClick
             )
         }
 

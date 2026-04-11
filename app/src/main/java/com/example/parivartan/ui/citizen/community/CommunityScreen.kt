@@ -24,9 +24,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.Date
+import com.example.parivartan.ui.citizen.map.allMockMapIssues
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
 
 data class Issue(
@@ -41,14 +44,6 @@ data class Issue(
     val userName: String
 )
 
-val allMockIssues = listOf(
-    Issue("1", "Broken Streetlight", "Streetlight on Main St is out.", "pending", "Main St", "infrastructure", "2026-03-29", 15, "Alice"),
-    Issue("2", "Pothole", "Large pothole on 5th Ave.", "in-progress", "5th Ave", "roads", "2026-03-28", 22, "Bob"),
-    Issue("3", "Trash Overflow", "Garbage bin overflowing.", "resolved", "Central Park", "sanitation", "2026-03-25", 5, "Charlie"),
-    Issue("4", "Water Leakage", "Pipe burst near the school.", "pending", "Model Town", "sanitation", "2026-04-09", 34, "David"),
-    Issue("5", "Fallen Tree", "Tree blocking the road after storm.", "in-progress", "Defence Colony", "parks", "2026-04-10", 45, "Eve"),
-    Issue("6", "Stray Dogs", "Pack of aggressive stray dogs.", "pending", "Urban Estate", "infrastructure", "2026-04-08", 12, "Frank")
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,9 +55,53 @@ fun CommunityScreen(
     var activeFilter by remember { mutableStateOf("all") }
     var refreshing by remember { mutableStateOf(false) }
 
+    var firestoreIssues by remember { mutableStateOf<List<Issue>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val db = FirebaseFirestore.getInstance()
+            val result = db.collection("issues")
+                .whereEqualTo("sharedWithCommunity", true)
+                .get()
+                .await()
+
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+
+            val issuesFromDb = result.mapNotNull { doc ->
+                val id = doc.id
+                val title = doc.getString("title") ?: "No Title"
+                val desc = doc.getString("description") ?: ""
+                val status = doc.getString("status") ?: "pending"
+                val location = doc.getString("locationAddress") ?: "Unknown Location"
+                val category = doc.getString("department") ?: "other"
+                val createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
+                val dateStr = sdf.format(Date(createdAt))
+                val upvotes = doc.getLong("upvotes")?.toInt() ?: 0
+                val userName = doc.getString("reporterName") ?: "Citizen"
+
+                Issue(id, title, desc, status, location, category, dateStr, upvotes, userName)
+            }
+            firestoreIssues = issuesFromDb
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            isLoading = false
+        }
+    }
+
     val email = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email
     val showMock = email == "android@gmail.com"
-    val mockIssues = remember(showMock) { if (showMock) allMockIssues else emptyList() }
+
+    val mappedMockIssues = remember {
+        allMockMapIssues.map {
+            Issue(it.id, it.title, it.description, it.status, it.location, it.category, it.date, it.upvotes, "Citizen")
+        }
+    }
+
+    val mockIssues = mappedMockIssues
+
+    val combinedIssues = mockIssues + firestoreIssues
 
     val filters = listOf(
         "all" to "All",
@@ -75,8 +114,8 @@ fun CommunityScreen(
         "sanitation" to "Sanitation"
     )
 
-    val currentIssues = mockIssues
-        .filter { if (activeFilter == "all") true else it.status == activeFilter || it.category == activeFilter }
+    val currentIssues = combinedIssues
+        .filter { if (activeFilter == "all") true else it.status.lowercase() == activeFilter || it.category.lowercase() == activeFilter }
         .filter { it.title.contains(searchQuery, ignoreCase = true) || it.description.contains(searchQuery, ignoreCase = true) || it.location.contains(searchQuery, ignoreCase = true) }
         .sortedByDescending { it.upvotes }
 
@@ -179,31 +218,37 @@ fun CommunityScreen(
         }
 
         // Issues List
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            items(currentIssues) { issue ->
-                IssueCard(issue, onNavigateToIssueDetail = onNavigateToIssueDetail)
+        if (isLoading) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Color(0xFF0D9488))
             }
-            if (currentIssues.isEmpty()) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 40.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Outlined.Search,
-                            contentDescription = "No items",
-                            modifier = Modifier.size(48.dp),
-                            tint = Color(0xFF94A3B8)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("No issues found", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
-                        Text("Try changing your search or filters", fontSize = 14.sp, color = Color(0xFF64748B))
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(currentIssues) { issue ->
+                    IssueCard(issue, onNavigateToIssueDetail = onNavigateToIssueDetail)
+                }
+                if (currentIssues.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 40.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Outlined.Search,
+                                contentDescription = "No items",
+                                modifier = Modifier.size(48.dp),
+                                tint = Color(0xFF94A3B8)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("No issues found", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
+                            Text("Try changing your search or filters", fontSize = 14.sp, color = Color(0xFF64748B))
+                        }
                     }
                 }
             }

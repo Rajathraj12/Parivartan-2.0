@@ -50,7 +50,10 @@ private fun generateCaptcha(): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DepartmentLoginScreen(
+    onLogin: (String, String, String) -> Unit,
     onLoginDemoClick: (String) -> Unit,
+    isLoading: Boolean = false,
+    authError: String? = null,
     modifier: Modifier = Modifier
 ) {
     var email by remember { mutableStateOf("") }
@@ -58,7 +61,6 @@ fun DepartmentLoginScreen(
     var selectedDepartment by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
     var captchaAnswer by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
     var departmentMenuExpanded by remember { mutableStateOf(false) }
 
     // Captcha Logic
@@ -247,61 +249,55 @@ fun DepartmentLoginScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                if (!authError.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = authError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // Captcha
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFF0FDFA), RoundedCornerShape(12.dp))
-                        .border(1.dp, Color(0xFFCCFBF1), RoundedCornerShape(12.dp))
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            text = "Solve Captcha",
-                            fontSize = 12.sp,
-                            color = Color(0xFF0F766E),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = captchaAnswer,
+                    onValueChange = { captchaAnswer = it },
+                    label = { Text("Enter Captcha") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = DeptColor,
+                        focusedLabelColor = DeptColor,
+                        cursorColor = DeptColor
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp)) {
                             Text(
                                 text = captchaText,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF115E59),
-                                modifier = Modifier.background(Color.White, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp).border(1.dp, Color.LightGray, RoundedCornerShape(4.dp))
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 3.sp,
+                                color = DeptColor,
+                                modifier = Modifier
+                                    .background(DeptColor.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                             IconButton(onClick = refreshCaptcha) {
-                                Icon(Icons.Outlined.Refresh, "Refresh", tint = Color(0xFF0F766E))
+                                Icon(Icons.Outlined.Refresh, "Refresh", tint = Color.Gray)
                             }
                         }
                     }
-                    OutlinedTextField(
-                        value = captchaAnswer,
-                        onValueChange = { captchaAnswer = it },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = DeptColor,
-                            unfocusedBorderColor = Color(0xFFCCFBF1)
-                        ),
-                        modifier = Modifier.width(100.dp),
-                        textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
-                        placeholder = { Text("Text", fontSize = 12.sp) }
-                    )
-                }
+                )
 
                 Spacer(modifier = Modifier.height(32.dp))
 
                 Button(
                     onClick = {
-                        isLoading = true
-                        coroutineScope.launch {
-                            delay(800) // fake load
-                            onLoginDemoClick("department:${selectedDepartment}")
-                        }
+                        onLogin(email.trim(), password, selectedDepartment)
                     },
                     enabled = !isLoading && email.isNotBlank() && password.isNotBlank() && selectedDepartment.isNotBlank() && captchaAnswer.equals(captchaText, ignoreCase = true),
                     colors = ButtonDefaults.buttonColors(

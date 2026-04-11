@@ -47,6 +47,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import com.example.parivartan.ui.citizen.map.allMockMapIssues
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
 private val Teal500 = Color(0xFF14B8A6)
 private val Teal600 = Color(0xFF0D9488)
@@ -112,25 +115,56 @@ fun HomeScreen(
     val email = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email
     val showMock = email == "android@gmail.com"
 
-    // Mock data for now (no auth/backend as requested)
-    val urgentIssues = remember(showMock) {
-        if (!showMock) emptyList() else listOf(
-            Issue("1", "Garbage overflow near market", Status.Pending, "Central", upvotes = 42),
-            Issue("2", "Pothole on main road", Status.InProgress, "North", upvotes = 31),
-            Issue("3", "Streetlight not working", Status.UnderReview, "East", upvotes = 27),
-            Issue("4", "Water leakage", Status.Assigned, "West", upvotes = 18),
-            Issue("5", "Illegal dumping", Status.Rejected, "South", upvotes = 12),
-        )
+    var firestoreIssues by remember { mutableStateOf<List<Issue>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val db = FirebaseFirestore.getInstance()
+            val result = db.collection("issues").whereEqualTo("sharedWithCommunity", true).get().await()
+            val issuesFromDb = result.mapNotNull { doc ->
+                val id = doc.id
+                val title = doc.getString("title") ?: "No Title"
+                val rawStatus = doc.getString("status")?.lowercase() ?: "pending"
+                val mappedStatus = when(rawStatus) {
+                    "pending" -> Status.Pending
+                    "under_review", "under review" -> Status.UnderReview
+                    "assigned" -> Status.Assigned
+                    "in_progress", "in progress" -> Status.InProgress
+                    "resolved" -> Status.Resolved
+                    "rejected" -> Status.Rejected
+                    "closed" -> Status.Closed
+                    else -> Status.Pending
+                }
+                val district = doc.getString("department") ?: "General"
+                val upvotes = doc.getLong("upvotes")?.toInt() ?: 0
+                Issue(id, title, mappedStatus, district, null, upvotes)
+            }
+            firestoreIssues = issuesFromDb
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
-    val recentIssues = remember(showMock) {
-        if (!showMock) emptyList() else listOf(
-            Issue("11", "Broken sidewalk", Status.Pending, "Central", upvotes = 3),
-            Issue("12", "Stray dog complaint", Status.UnderReview, "East", upvotes = 7),
-            Issue("13", "Open manhole", Status.InProgress, "North", upvotes = 11),
-            Issue("14", "Graffiti on wall", Status.Closed, "West", upvotes = 1),
-            Issue("15", "Blocked drain", Status.Resolved, "South", upvotes = 5),
-        )
+    val mappedMockMapIssues = allMockMapIssues.map {
+        val s = when(it.status.lowercase()) {
+            "pending" -> Status.Pending
+            "in-progress" -> Status.InProgress
+            "resolved" -> Status.Resolved
+            else -> Status.Pending
+        }
+        Issue(it.id, it.title, s, it.location, null, it.upvotes)
+    }
+
+    val combinedIssues = remember(firestoreIssues, mappedMockMapIssues) {
+        (firestoreIssues + mappedMockMapIssues).distinctBy { it.id }
+    }
+
+    val urgentIssues = remember(combinedIssues) {
+        combinedIssues.sortedByDescending { it.upvotes }.take(5)
+    }
+
+    val recentIssues = remember(combinedIssues) {
+        combinedIssues.reversed().take(5)
     }
 
     var isVisible by remember { mutableStateOf(false) }
@@ -164,7 +198,7 @@ fun HomeScreen(
                 QuickActionsRow(
                     onReport = onReportIssue,
                     onMap = onOpenMap,
-                    onMyIssues = { onOpenIssueDetail("1") },
+                    onMyIssues = onOpenMyComplaints,
                     onCommunity = onOpenCommunity,
                 )
             }

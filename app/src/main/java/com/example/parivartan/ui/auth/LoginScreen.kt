@@ -298,48 +298,36 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Captcha
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFF0FDFA), RoundedCornerShape(12.dp))
-                        .border(1.dp, Color(0xFFCCFBF1), RoundedCornerShape(12.dp))
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            text = "Solve Captcha",
-                            fontSize = 12.sp,
-                            color = Color(0xFF0F766E),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = captchaAnswer,
+                    onValueChange = { captchaAnswer = it },
+                    label = { Text("Enter Captcha") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Teal600,
+                        focusedLabelColor = Teal600,
+                        cursorColor = Teal600
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp)) {
                             Text(
                                 text = captchaText,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF115E59),
-                                modifier = Modifier.background(Color.White, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp).border(1.dp, Color.LightGray, RoundedCornerShape(4.dp))
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 3.sp,
+                                color = Teal600,
+                                modifier = Modifier
+                                    .background(Teal600.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                             IconButton(onClick = refreshCaptcha) {
-                                Icon(Icons.Outlined.Refresh, "Refresh", tint = Color(0xFF0F766E))
+                                Icon(Icons.Outlined.Refresh, "Refresh", tint = Color.Gray)
                             }
                         }
                     }
-                    OutlinedTextField(
-                        value = captchaAnswer,
-                        onValueChange = { captchaAnswer = it },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Teal600,
-                            unfocusedBorderColor = Color(0xFFCCFBF1)
-                        ),
-                        modifier = Modifier.width(100.dp),
-                        textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
-                        placeholder = { Text("Text", fontSize = 12.sp) }
-                    )
-                }
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 

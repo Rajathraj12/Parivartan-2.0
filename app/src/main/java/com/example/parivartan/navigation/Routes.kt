@@ -12,6 +12,7 @@ sealed interface Route {
 
     data object Intro : Route { override val route = "intro" }
     data object Login : Route { override val route = "login" }
+    data object AdminLogin : Route { override val route = "admin_login" }
     data object StaffLogin : Route { override val route = "staff_login" }
     data object DepartmentLogin : Route { override val route = "department_login" }
     data object Signup : Route { override val route = "signup" }

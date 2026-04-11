@@ -27,10 +27,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import com.example.parivartan.data.IssueRepository
 
 data class Comment(
     val id: String,
@@ -67,36 +67,41 @@ fun StaffIssueDetailScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val issueRepository = remember { IssueRepository() }
 
-    // Mock initial data
-    var issue by remember {
-        mutableStateOf(
-            StaffIssue(
-                id = issueId,
-                title = "Pothole on Main St",
-                description = "Large pothole causing traffic slowdowns and potential vehicle damage near the intersection.",
-                priority = "high",
-                status = "pending",
-                locationAddress = "Main St, City Center",
-                locationLat = 31.330000,
-                locationLng = 75.584400,
-                reporterName = "Aarav Sharma",
-                reporterContact = "+91 9876543210",
-                upvotes = 15,
-                photos = listOf("https://via.placeholder.com/150"),
-                comments = listOf(
-                    Comment("c1", "Please look into this ASAP.", "Aarav Sharma", System.currentTimeMillis() - 86400000)
-                ),
-                createdAt = System.currentTimeMillis() - 86400000 * 2,
-                updatedAt = System.currentTimeMillis() - 86400000
-            )
-        )
-    }
-
+    var issue by remember { mutableStateOf<StaffIssue?>(null) }
     var newComment by remember { mutableStateOf("") }
-    var uploading by remember { mutableStateOf(false) }
-
     var showStatusDialog by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(issueId) {
+        val result = issueRepository.getIssue(issueId)
+        if (result.isSuccess) {
+            val fetchedIssue = result.getOrNull()
+            if (fetchedIssue != null) {
+                issue = StaffIssue(
+                    id = fetchedIssue.id,
+                    title = fetchedIssue.title,
+                    description = fetchedIssue.description,
+                    priority = fetchedIssue.priority,
+                    status = fetchedIssue.status,
+                    locationAddress = fetchedIssue.locationAddress,
+                    locationLat = fetchedIssue.locationLat,
+                    locationLng = fetchedIssue.locationLng,
+                    reporterName = fetchedIssue.reporterName,
+                    reporterContact = fetchedIssue.reporterContact,
+                    upvotes = fetchedIssue.upvotes,
+                    photos = fetchedIssue.photos,
+                    comments = fetchedIssue.comments.map {
+                        Comment(it.id, it.text, it.userName, it.timestamp)
+                    },
+                    createdAt = fetchedIssue.createdAt,
+                    updatedAt = fetchedIssue.updatedAt
+                )
+            }
+        }
+        isLoading = false
+    }
 
     val getStatusColor = { status: String ->
         when (status) {
@@ -123,54 +128,56 @@ fun StaffIssueDetailScreen(
         sdf.format(Date(dateMillis))
     }
 
-    val handleNavigate = {
-        val lat = issue.locationLat
-        val lng = issue.locationLng
-        if (lat != null && lng != null) {
-            val uri = Uri.parse("google.navigation:q=$lat,$lng")
-            val mapIntent = Intent(Intent.ACTION_VIEW, uri)
-            mapIntent.setPackage("com.google.android.apps.maps")
-            if (mapIntent.resolveActivity(context.packageManager) != null) {
-                context.startActivity(mapIntent)
-            } else {
-                val browserIntent = Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$lat,$lng")
-                )
-                context.startActivity(browserIntent)
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else if (issue == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Issue not found")
+        }
+    } else {
+        val currentIssue = issue!!
+
+        val handleNavigate = {
+            val lat = currentIssue.locationLat
+            val lng = currentIssue.locationLng
+            if (lat != null && lng != null) {
+                val uri = Uri.parse("google.navigation:q=$lat,$lng")
+                val mapIntent = Intent(Intent.ACTION_VIEW, uri)
+                mapIntent.setPackage("com.google.android.apps.maps")
+                if (mapIntent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(mapIntent)
+                } else {
+                    val browserIntent = Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$lat,$lng")
+                    )
+                    context.startActivity(browserIntent)
+                }
             }
         }
-    }
 
-    val handleAddComment = {
-        if (newComment.isNotBlank()) {
-            val comment = Comment(
-                id = "c${System.currentTimeMillis()}",
-                text = newComment,
-                author = "Staff User",
-                timestamp = System.currentTimeMillis()
-            )
-            issue = issue.copy(
-                comments = issue.comments + comment,
-                updatedAt = System.currentTimeMillis()
-            )
-            newComment = ""
+        val handleAddComment = {
+            if (newComment.isNotBlank()) {
+                coroutineScope.launch {
+                    // Here you would add the comment via repository in a real scenario
+                    val comment = Comment(
+                        id = "c${System.currentTimeMillis()}",
+                        text = newComment,
+                        author = "Staff User",
+                        timestamp = System.currentTimeMillis()
+                    )
+                    issue = currentIssue.copy(
+                        comments = currentIssue.comments + comment,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    newComment = ""
+                }
+            }
         }
-    }
 
-    val handlePickImage: () -> Unit = {
-        uploading = true
-        coroutineScope.launch {
-            delay(1000)
-            issue = issue.copy(
-                photos = issue.photos + "https://via.placeholder.com/150/0000FF",
-                updatedAt = System.currentTimeMillis()
-            )
-            uploading = false
-        }
-    }
-
-    Scaffold(
+        Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Issue Details", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
@@ -207,20 +214,20 @@ fun StaffIssueDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(issue.id, fontSize = 14.sp, color = Color(0xFF6B7280), fontWeight = FontWeight.SemiBold)
+                        Text(currentIssue.id, fontSize = 14.sp, color = Color(0xFF6B7280), fontWeight = FontWeight.SemiBold)
                         Row(
                             modifier = Modifier
-                                .background(getPriorityColor(issue.priority), RoundedCornerShape(6.dp))
+                                .background(getPriorityColor(currentIssue.priority), RoundedCornerShape(6.dp))
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(Icons.Default.Flag, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                            Text(issue.priority.uppercase(), fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(currentIssue.priority.uppercase(), fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                     Text(
-                        text = issue.title,
+                        text = currentIssue.title,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF111827),
@@ -228,11 +235,11 @@ fun StaffIssueDetailScreen(
                     )
                     Box(
                         modifier = Modifier
-                            .background(getStatusColor(issue.status), RoundedCornerShape(16.dp))
+                            .background(getStatusColor(currentIssue.status), RoundedCornerShape(16.dp))
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            issue.status.replace("-", " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
+                            currentIssue.status.replace("-", " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
                             fontSize = 12.sp,
                             color = Color.White,
                             fontWeight = FontWeight.SemiBold
@@ -243,13 +250,13 @@ fun StaffIssueDetailScreen(
 
             // Issue Details
             CardSection(title = "Description", icon = Icons.Outlined.Description, iconTint = Color(0xFF0D9488)) {
-                Text(issue.description, fontSize = 14.sp, color = Color(0xFF334155), lineHeight = 22.sp)
+                Text(currentIssue.description, fontSize = 14.sp, color = Color(0xFF334155), lineHeight = 22.sp)
             }
 
             // Location
             CardSection(title = "Location", icon = Icons.Outlined.LocationOn, iconTint = Color(0xFF0D9488)) {
-                Text(issue.locationAddress, fontSize = 14.sp, color = Color(0xFF334155), modifier = Modifier.padding(bottom = 12.dp))
-                if (issue.locationLat != null && issue.locationLng != null) {
+                Text(currentIssue.locationAddress, fontSize = 14.sp, color = Color(0xFF334155), modifier = Modifier.padding(bottom = 12.dp))
+                if (currentIssue.locationLat != null && currentIssue.locationLng != null) {
                     Button(
                         onClick = handleNavigate,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
@@ -265,8 +272,8 @@ fun StaffIssueDetailScreen(
 
             // Reporter Info
             CardSection(title = "Reporter Information", icon = Icons.Outlined.Person, iconTint = Color(0xFF0D9488)) {
-                InfoRow("Name:", issue.reporterName)
-                InfoRow("Contact:", issue.reporterContact)
+                InfoRow("Name:", currentIssue.reporterName)
+                InfoRow("Contact:", currentIssue.reporterContact)
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -275,19 +282,19 @@ fun StaffIssueDetailScreen(
                     Text("Upvotes:", fontSize = 14.sp, color = Color(0xFF64748B))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = Color(0xFF0D9488), modifier = Modifier.size(14.dp))
-                        Text(issue.upvotes.toString(), fontSize = 14.sp, color = Color(0xFF0D9488), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
+                        Text(currentIssue.upvotes.toString(), fontSize = 14.sp, color = Color(0xFF0D9488), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
                     }
                 }
             }
 
             // Photos
             CardSection(title = "Photos", icon = Icons.Outlined.Image, iconTint = Color(0xFF0D9488)) {
-                if (issue.photos.isNotEmpty()) {
+                if (currentIssue.photos.isNotEmpty()) {
                     LazyRow(
                         modifier = Modifier.padding(bottom = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(issue.photos) { photo ->
+                        items(currentIssue.photos) { photo ->
                             AsyncImage(
                                 model = photo,
                                 contentDescription = "Issue Photo",
@@ -300,23 +307,6 @@ fun StaffIssueDetailScreen(
                     }
                 } else {
                     Text("No photos available", fontSize = 14.sp, color = Color(0xFF94A3B8), modifier = Modifier.padding(bottom = 12.dp))
-                }
-
-                OutlinedButton(
-                    onClick = handlePickImage,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF0D9488))
-                ) {
-                    if (uploading) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFF0D9488), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Uploading...")
-                    } else {
-                        Icon(Icons.Outlined.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Upload Photo", fontWeight = FontWeight.SemiBold)
-                    }
                 }
             }
 
@@ -332,7 +322,7 @@ fun StaffIssueDetailScreen(
             CardSection(title = "Update Status", icon = Icons.Outlined.Refresh, iconTint = Color(0xFF0D9488)) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     statusOptions.forEach { option ->
-                        val isActive = issue.status == option.value
+                        val isActive = currentIssue.status == option.value
                         val oColor = getStatusColor(option.value)
 
                         Box(
@@ -364,10 +354,10 @@ fun StaffIssueDetailScreen(
             }
 
             // Comments
-            CardSection(title = "Comments (${issue.comments.size})", icon = Icons.Outlined.ChatBubbleOutline, iconTint = Color(0xFF0D9488)) {
-                if (issue.comments.isNotEmpty()) {
+            CardSection(title = "Comments (${currentIssue.comments.size})", icon = Icons.Outlined.ChatBubbleOutline, iconTint = Color(0xFF0D9488)) {
+                if (currentIssue.comments.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        issue.comments.forEach { comment ->
+                        currentIssue.comments.forEach { comment ->
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -425,12 +415,12 @@ fun StaffIssueDetailScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = Color(0xFF6B7280), modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Created: ${formatDate(issue.createdAt)}", fontSize = 12.sp, color = Color(0xFF6B7280))
+                    Text("Created: ${formatDate(currentIssue.createdAt)}", fontSize = 12.sp, color = Color(0xFF6B7280))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = Color(0xFF6B7280), modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Updated: ${formatDate(issue.updatedAt)}", fontSize = 12.sp, color = Color(0xFF6B7280))
+                    Text("Updated: ${formatDate(currentIssue.updatedAt)}", fontSize = 12.sp, color = Color(0xFF6B7280))
                 }
                 Spacer(modifier = Modifier.height(20.dp))
             }
@@ -445,8 +435,11 @@ fun StaffIssueDetailScreen(
             text = { Text("Change status to \"${newStatus.replace("-", " ")}\"?") },
             confirmButton = {
                 TextButton(onClick = {
-                    issue = issue.copy(status = newStatus, updatedAt = System.currentTimeMillis())
-                    showStatusDialog = null
+                    coroutineScope.launch {
+                        issueRepository.updateIssueStatus(currentIssue.id, newStatus)
+                        issue = currentIssue.copy(status = newStatus, updatedAt = System.currentTimeMillis())
+                        showStatusDialog = null
+                    }
                 }) {
                     Text("Confirm")
                 }
@@ -458,6 +451,7 @@ fun StaffIssueDetailScreen(
             }
         )
     }
+}
 }
 
 @Composable

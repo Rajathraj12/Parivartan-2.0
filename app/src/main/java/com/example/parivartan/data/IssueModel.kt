@@ -14,6 +14,7 @@ data class IssueModel(
     val reporterId: String = "",
     val reporterName: String = "",
     val reporterContact: String = "",
+    val sharedWithCommunity: Boolean = true,
     val assignedTo: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),

@@ -88,6 +88,7 @@ fun ReportIssueScreen(
     var isLoadingLocation by remember { mutableStateOf(false) }
     var locationAddress by remember { mutableStateOf<String?>(null) }
     var locationCoords by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    var sharedWithCommunity by remember { mutableStateOf(true) }
 
     // Image state
     var mediaFiles by remember { mutableStateOf(listOf<Uri>()) }
@@ -479,6 +480,28 @@ fun ReportIssueScreen(
 
             Spacer(Modifier.height(24.dp))
 
+            // Anonymous / Share
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White, RoundedCornerShape(8.dp))
+                    .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Share with Community", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xFF334155))
+                    Text("Allow others to see it", fontSize = 12.sp, color = Color(0xFF64748B))
+                }
+                Switch(
+                    checked = sharedWithCommunity,
+                    onCheckedChange = { sharedWithCommunity = it },
+                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF0D9488))
+                )
+            }
+            Spacer(Modifier.height(24.dp))
+
             // Submit Button
             Button(
                 onClick = {
@@ -491,6 +514,7 @@ fun ReportIssueScreen(
                             locationAddress = locationAddress ?: "",
                             locationLat = locationCoords?.first ?: 0.0,
                             locationLng = locationCoords?.second ?: 0.0,
+                            sharedWithCommunity = sharedWithCommunity,
                             photos = mediaFiles.map { it.toString() }
                         )
                         val result = issueRepository.submitIssue(newIssue)

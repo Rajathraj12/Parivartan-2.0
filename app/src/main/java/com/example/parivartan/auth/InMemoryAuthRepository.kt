@@ -21,6 +21,10 @@ class InMemoryAuthRepository : AuthRepository {
         return Result.success(Unit)
     }
 
+    override suspend fun signInWithEmailAndRole(email: String, password: String, expectedRole: String): Result<Unit> {
+        return Result.success(Unit)
+    }
+
     override suspend fun signUpWithEmail(fullName: String, email: String, password: String): Result<Unit> {
         return Result.success(Unit)
     }
